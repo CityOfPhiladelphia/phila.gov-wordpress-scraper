@@ -1,14 +1,7 @@
 # Import the modules
 import os
 import requests
-
-# Declare some constants
-BETA_URL = "https://beta.phila.gov/wp-json/wp/v2/"
-PERPAGE_URL = "?per_page=1"
-PERPAGEAND_URL = "&per_page=1"
-SAVE_FOLDER = "sitefiles/"
-NEW_URL = "market.phila.gov"
-HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
+import json
 
 # Class that holds information about the service
 # Not much hear yet, but wanted to put it in a class
@@ -49,7 +42,17 @@ def ProcessPage(url, x):
         # Call function to save the page now that we have our link
         SavePage(pageAddress)    
 
-# Start of application. Build out list of end-points
+# Start of application. Get our Config Values
+config = json.load(open('config.json'))
+# Declare some constants
+BETA_URL = config["BetaUrl"]
+PERPAGE_URL = config["PerPageUrl"]
+PERPAGEAND_URL = config["PerPageAndUrl"]
+SAVE_FOLDER = config["SaveFolder"]
+NEW_URL = config["NewUrl"]
+HEADER = config["Header"]
+
+
 endpoints = list()
 endpoints.append(ServiceEndPoint("pages"))
 endpoints.append(ServiceEndPoint("posts"))
