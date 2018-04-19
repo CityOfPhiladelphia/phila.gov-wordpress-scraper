@@ -18,8 +18,7 @@ class ServiceEndPoint:
 
 # Gets a page and saves the content to disk
 def SavePage(url):
-    headers = {'user-agent': 'beta-static-generator/0.0.1'}
-    response = requests.get(url, headers = headers)
+    response = requests.get(url, headers = HEADER)
     folder = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "")
     if not os.path.exists(folder):
         print('Creating folder ' + folder)
