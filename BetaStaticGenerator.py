@@ -54,21 +54,25 @@ def ProcessPage(url, x):
         SavePage(pageAddress)    
 
 # Start of application. 
-# 
-
-
+error = config["Error"]
 startTime = datetime.datetime.now()
+try:
+    if error == "False":
+        endpoints = list()
+        endpoints.append(ServiceEndPoint("pages"))
+        #endpoints.append(ServiceEndPoint("posts"))
 
-endpoints = list()
-endpoints.append(ServiceEndPoint("pages"))
-#endpoints.append(ServiceEndPoint("posts"))
+        # process each endpoint in our list
+        for service in endpoints:
+            service.count = GetPageCount(service.url)
+            for x in range(1, int(service.count)):
+                ProcessPage(service.url, x)
 
-# process each endpoint in our list
-for service in endpoints:
-    service.count = GetPageCount(service.url)
-    for x in range(1, int(service.count)):
-        ProcessPage(service.url, x)
-
-config["LastRun"] = startTime.strftime("%Y-%m-%d %H:%M:%S")
-with open('config.json', 'w') as outfile:
-    json.dump(config, outfile)
+        # finally set the LastRun value and save to the config file
+        config["LastRun"] = startTime.strftime("%Y-%m-%d %H:%M:%S")
+except:
+    error = "True"
+finally:
+    config["Error"] = error
+    with open('config.json', 'w') as outfile:
+        json.dump(config, outfile)
