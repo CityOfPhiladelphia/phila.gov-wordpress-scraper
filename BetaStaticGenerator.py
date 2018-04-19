@@ -13,11 +13,12 @@ class ServiceEndPoint:
 
 def SavePage(url):
     headers = {'user-agent': 'beta-static-generator/0.0.1'}
-    response = requests.get(url)
+    response = requests.get(url, headers = headers)
     folderPath = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "")
     if not os.path.exists(folderPath):
+        print('Creating folder ' + folderPath)
         os.makedirs(folderPath)
-    f = open(folderPath + 'index.html','w')
+    f = open(folderPath + 'index.html','w', encoding="utf-8")
     f.write(response.text)
     f.close()
 
