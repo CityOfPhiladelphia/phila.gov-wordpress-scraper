@@ -6,7 +6,7 @@ import requests
 BETA_URL = "https://beta.phila.gov/wp-json/wp/v2/"
 PERPAGE_URL = "?per_page=1"
 PERPAGEAND_URL = "&per_page=1"
-SAVE_FOLDER = "c:/beta/"
+SAVE_FOLDER = "sitefiles/"
 NEW_URL = "market.phila.gov"
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
 
