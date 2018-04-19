@@ -2,6 +2,17 @@
 import os
 import requests
 import json
+import datetime
+
+# Get our Config Values
+config = json.load(open('config.json'))
+BETA_URL = config["BetaUrl"]
+PERPAGE_URL = config["PerPageUrl"]
+PERPAGEAND_URL = config["PerPageAndUrl"]
+SAVE_FOLDER = config["SaveFolder"]
+NEW_URL = config["NewUrl"]
+HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
+LASTRUN = datetime.datetime.strptime(config["LastRun"], "%Y-%m-%d %H:%M:%S")
 
 # Class that holds information about the service
 # Not much hear yet, but wanted to put it in a class
@@ -42,23 +53,22 @@ def ProcessPage(url, x):
         # Call function to save the page now that we have our link
         SavePage(pageAddress)    
 
-# Start of application. Get our Config Values
-config = json.load(open('config.json'))
-# Declare some constants
-BETA_URL = config["BetaUrl"]
-PERPAGE_URL = config["PerPageUrl"]
-PERPAGEAND_URL = config["PerPageAndUrl"]
-SAVE_FOLDER = config["SaveFolder"]
-NEW_URL = config["NewUrl"]
-HEADER = config["Header"]
+# Start of application. 
+# 
 
+
+startTime = datetime.datetime.now()
 
 endpoints = list()
 endpoints.append(ServiceEndPoint("pages"))
-endpoints.append(ServiceEndPoint("posts"))
+#endpoints.append(ServiceEndPoint("posts"))
 
 # process each endpoint in our list
 for service in endpoints:
     service.count = GetPageCount(service.url)
     for x in range(1, int(service.count)):
         ProcessPage(service.url, x)
+
+config["LastRun"] = startTime.strftime("%Y-%m-%d %H:%M:%S")
+with open('config.json', 'w') as outfile:
+    json.dump(config, outfile)
