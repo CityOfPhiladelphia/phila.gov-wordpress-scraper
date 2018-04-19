@@ -25,7 +25,8 @@ def SavePage(url):
         print('Creating folder ' + folder)
         os.makedirs(folder)
     f = open(folder + 'index.html','w', encoding="utf-8")
-    f.write(response.text)
+    print('Writing file ' + folder + 'index.html')
+    f.write(response.text.replace('beta.phila.gov', NEW_URL))
     f.close()
 
 # Gets the total number of posts for the current type
