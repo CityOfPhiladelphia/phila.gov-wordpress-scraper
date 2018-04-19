@@ -4,7 +4,7 @@ import requests
 import json
 import datetime
 
-# Get our Config Values
+# Set our Config Values
 config = json.load(open('config.json'))
 BETA_URL = config["BetaUrl"]
 PERPAGE_URL = config["PerPageUrl"]
@@ -53,6 +53,11 @@ def ProcessPage(url, x):
         # Call function to save the page now that we have our link
         SavePage(pageAddress)    
 
+def SendErrorNotification(e):
+    subject = "Beta generator encountered an error when building the site"
+    body = "Error details: " + str(e)
+    email = subject + body
+
 # Start of application. 
 error = config["Error"]
 startTime = datetime.datetime.now()
@@ -73,8 +78,9 @@ try:
 
         # finally set the LastRun value and save to the config file
         config["LastRun"] = startTime.strftime("%Y-%m-%d %H:%M:%S")
-except:
+except BaseException as e:
     error = "True"
+    SendErrorNotification(e)
 finally:
     config["Error"] = error
     with open('config.json', 'w') as outfile:
