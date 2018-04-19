@@ -57,6 +57,9 @@ def ProcessPage(url, x):
 error = config["Error"]
 startTime = datetime.datetime.now()
 try:
+    # Only proceed if the last run was successful
+    # Forces an admin to manually clear the flag
+    # Hopefully after fixing whatever it is went wrong
     if error == "False":
         endpoints = list()
         endpoints.append(ServiceEndPoint("bada"))
