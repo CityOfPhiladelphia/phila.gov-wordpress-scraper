@@ -11,6 +11,9 @@ NEW_URL = "market.phila.gov"
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
 
 # Class that holds information about the service
+# Not much hear yet, but wanted to put it in a class
+# for future expansion. We may just replace with a list of 
+# urls
 class ServiceEndPoint:
     def __init__(self, url):
         self.url = url
