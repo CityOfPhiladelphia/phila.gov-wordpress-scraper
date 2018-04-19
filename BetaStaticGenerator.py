@@ -59,7 +59,7 @@ startTime = datetime.datetime.now()
 try:
     if error == "False":
         endpoints = list()
-        endpoints.append(ServiceEndPoint("pages"))
+        endpoints.append(ServiceEndPoint("bada"))
         #endpoints.append(ServiceEndPoint("posts"))
 
         # process each endpoint in our list
