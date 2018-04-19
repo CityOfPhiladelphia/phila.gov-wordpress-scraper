@@ -1,49 +1,58 @@
-import requests, os
+# Import the modules
+import os
+import requests
 
+# Declare some constants
 BETA_URL = "https://beta.phila.gov/wp-json/wp/v2/"
 PERPAGE_URL = "?per_page=1"
 PERPAGEAND_URL = "&per_page=1"
 SAVE_FOLDER = "c:/beta/"
 NEW_URL = "market.phila.gov"
+HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
 
+# Class that holds information about the service
 class ServiceEndPoint:
     def __init__(self, url):
         self.url = url
     count = 0
 
+# Gets a page and saves the content to disk
 def SavePage(url):
     headers = {'user-agent': 'beta-static-generator/0.0.1'}
     response = requests.get(url, headers = headers)
-    folderPath = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "")
-    if not os.path.exists(folderPath):
-        print('Creating folder ' + folderPath)
-        os.makedirs(folderPath)
-    f = open(folderPath + 'index.html','w', encoding="utf-8")
+    folder = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "")
+    if not os.path.exists(folder):
+        print('Creating folder ' + folder)
+        os.makedirs(folder)
+    f = open(folder + 'index.html','w', encoding="utf-8")
     f.write(response.text)
     f.close()
 
+# Gets the total number of posts for the current type
 def GetPageCount(url):
     count = 0
 
-    headers = {'user-agent': 'beta-static-generator/0.0.1'}
-    response = requests.get(BETA_URL + url + PERPAGE_URL, headers = headers)
+    response = requests.get(BETA_URL + url + PERPAGE_URL, headers = HEADER)
     count = response.headers["x-wp-totalpages"]
 
     return count
 
+# Gets the basic metadata for the item, used to get URL and modified date/time
 def ProcessPage(url, x):
-    headers = {'user-agent': 'beta-static-generator/0.0.1'}
-    response = requests.get(BETA_URL + url + "/?page=" + str(x) + PERPAGEAND_URL, headers = headers)
+    response = requests.get(BETA_URL + url + "/?page=" + str(x) + PERPAGEAND_URL, headers = HEADER)
     data = response.json()
     for pageData in data:
         pageAddress = pageData["link"]
+        # Call function to save the page now that we have our link
         SavePage(pageAddress)    
 
+# Start of application. Build out list of end-points
 endpoints = list()
+endpoints.append(ServiceEndPoint("pages"))
 endpoints.append(ServiceEndPoint("posts"))
 
+# process each endpoint in our list
 for service in endpoints:
     service.count = GetPageCount(service.url)
     for x in range(1, int(service.count)):
         ProcessPage(service.url, x)
-
