@@ -3,6 +3,8 @@ import os
 import requests
 import json
 import datetime
+import smtplib
+from email.mime.text import MIMEText
 
 # Set our Config Values
 config = json.load(open('config.json'))
@@ -54,11 +56,40 @@ def ProcessPage(url, x):
         SavePage(pageAddress)    
 
 def SendErrorNotification(e):
-    subject = "Beta generator encountered an error when building the site"
-    body = "Error details: " + str(e)
-    email = subject + body
+    try:
+        subject = "Beta generator encountered an error when building the site"
+        body = "Error details: " + str(e)
+        msg = MIMEText(subject + body)
+        msg['Subject'] = subject
+        msg['From'] = 'ithelp@phila.gov'
+        msg['To'] = 'andrew.kennel@phila.gov'
+        SendEmail(msg)
+    except:
+        print("Fail")
+
+def PostToSlack(message):
+    post = {"text": "{0}".format(message)}
+ 
+    try:
+        json_data = json.dumps(post)
+        response = requests.post("https://hooks.slack.com/services/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",
+                              data=json_data.encode('ascii'),
+                              headers={'Content-Type': 'application/json'})
+    except Exception as em:
+        #Fall-back to sending an email
+        print(SendErrorNotification(em))
+
+def SendEmail(msg):
+    try:
+        s = smtplib.SMTP("relay.city.phila.local")
+        s.set_debuglevel(1)
+        s.send_message(msg)
+        s.quit()
+    except:
+        print("Fail")
 
 # Start of application. 
+PostToSlack("Testing from Python, that was surprisingly easy.")
 error = config["Error"]
 startTime = datetime.datetime.now()
 try:
