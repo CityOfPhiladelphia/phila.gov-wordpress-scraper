@@ -72,7 +72,7 @@ def PostToSlack(message):
  
     try:
         json_data = json.dumps(post)
-        response = requests.post("https://hooks.slack.com/services/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",
+        requests.post("https://hooks.slack.com/services/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",
                               data=json_data.encode('ascii'),
                               headers={'Content-Type': 'application/json'})
     except Exception as em:
@@ -89,7 +89,6 @@ def SendEmail(msg):
         print("Fail")
 
 # Start of application. 
-PostToSlack("Testing from Python, that was surprisingly easy.")
 error = config["Error"]
 startTime = datetime.datetime.now()
 try:
@@ -109,9 +108,11 @@ try:
 
         # finally set the LastRun value and save to the config file
         config["LastRun"] = startTime.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        PostToSlack("There was an error scraping beta.phila.gov on the last run. Please clear the error.")
 except BaseException as e:
     error = "True"
-    SendErrorNotification(e)
+    PostToSlack("Error scraping beta.phila.gov")
 finally:
     config["Error"] = error
     with open('config.json', 'w') as outfile:
