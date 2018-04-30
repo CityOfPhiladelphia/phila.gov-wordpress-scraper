@@ -5,6 +5,8 @@ import json
 import datetime
 import smtplib
 from email.mime.text import MIMEText
+import boto3
+import botocore
 
 # Set our Config Values
 config = json.load(open('config.json'))
@@ -12,23 +14,21 @@ config = json.load(open('config.json'))
 SAVE_FOLDER = config["SaveFolder"]
 NEW_URL = config["NewUrl"]
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
-LASTRUN = datetime.datetime.strptime(config["LastRun"], "%Y-%m-%d %H:%M:%S")
+LASTRUN = config["LastRun"]
 API_URL = config["API"]
 
-# Gets a page and saves the content to disk
-def SavePage(url):
+def SavePageToS3(url):
     response = requests.get(url, headers = HEADER)
-    folder = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "")
-    if not os.path.exists(folder):
-        print('Creating folder ' + folder)
-        os.makedirs(folder)
-    f = open(folder + 'index.html','w', encoding="utf-8")
-    print('Writing file ' + folder + 'index.html')
-    f.write(response.text.replace('beta.phila.gov', NEW_URL))
-    f.close()
+    key = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "") + "index.html"
+    # Create our S3 Connector
+    bucketName = "static.merge.phila.gov"
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(bucketName)
+    bucket.put_object(Key = key, Body = response.text.replace('beta.phila.gov', NEW_URL),
+                        ContentType = 'text/html', ACL = 'public-read')
 
 def GetPagesList(url):
-    response = requests.get(url, )
+    response = requests.get(url, headers = HEADER)
     print(response)
     data = response.json()
     return data
@@ -80,11 +80,11 @@ try:
         #endpoints.append(ServiceEndPoint("posts"))
 
         # process each endpoint in our list
-        pageData = GetPagesList(API_URL)
+        pageData = GetPagesList(API_URL + "?timestamp=" + LASTRUN)
         print(pageData)
         for page in pageData:
             print(page["link"])
-            SavePage(page["link"])
+            SavePageToS3(page["link"])
 
         # finally set the LastRun value and save to the config file
         config["LastRun"] = startTime.strftime("%Y-%m-%d %H:%M:%S")
