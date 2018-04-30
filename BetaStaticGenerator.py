@@ -7,10 +7,8 @@ import smtplib
 from email.mime.text import MIMEText
 
 # Set our Config Values
-config = json.load(open('/home/ec2-user/environment/betastaticsitegenerator/config.json'))
-BETA_URL = config["BetaUrl"]
-PERPAGE_URL = config["PerPageUrl"]
-PERPAGEAND_URL = config["PerPageAndUrl"]
+config = json.load(open('config.json'))
+
 SAVE_FOLDER = config["SaveFolder"]
 NEW_URL = config["NewUrl"]
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
@@ -30,7 +28,7 @@ def SavePage(url):
     f.close()
 
 def GetPagesList(url):
-    response = requests.get(url)
+    response = requests.get(url, )
     print(response)
     data = response.json()
     return data
