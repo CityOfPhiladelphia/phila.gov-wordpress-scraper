@@ -5,55 +5,33 @@ import json
 import datetime
 import smtplib
 from email.mime.text import MIMEText
+import boto3
+import botocore
 
 # Set our Config Values
 config = json.load(open('config.json'))
-BETA_URL = config["BetaUrl"]
-PERPAGE_URL = config["PerPageUrl"]
-PERPAGEAND_URL = config["PerPageAndUrl"]
+
 SAVE_FOLDER = config["SaveFolder"]
 NEW_URL = config["NewUrl"]
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
-LASTRUN = datetime.datetime.strptime(config["LastRun"], "%Y-%m-%d %H:%M:%S")
+LASTRUN = config["LastRun"]
+API_URL = config["API"]
 
-# Class that holds information about the service
-# Not much hear yet, but wanted to put it in a class
-# for future expansion. We may just replace with a list of 
-# urls
-class ServiceEndPoint:
-    def __init__(self, url):
-        self.url = url
-    count = 0
-
-# Gets a page and saves the content to disk
-def SavePage(url):
+def SavePageToS3(url):
     response = requests.get(url, headers = HEADER)
-    folder = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "")
-    if not os.path.exists(folder):
-        print('Creating folder ' + folder)
-        os.makedirs(folder)
-    f = open(folder + 'index.html','w', encoding="utf-8")
-    print('Writing file ' + folder + 'index.html')
-    f.write(response.text.replace('beta.phila.gov', NEW_URL))
-    f.close()
+    key = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "") + "index.html"
+    # Create our S3 Connector
+    bucketName = "static.merge.phila.gov"
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(bucketName)
+    bucket.put_object(Key = key, Body = response.text.replace('beta.phila.gov', NEW_URL),
+                        ContentType = 'text/html', ACL = 'public-read')
 
-# Gets the total number of posts for the current type
-def GetPageCount(url):
-    count = 0
-
-    response = requests.get(BETA_URL + url + PERPAGE_URL, headers = HEADER)
-    count = response.headers["x-wp-totalpages"]
-
-    return count
-
-# Gets the basic metadata for the item, used to get URL and modified date/time
-def ProcessPage(url, x):
-    response = requests.get(BETA_URL + url + "/?page=" + str(x) + PERPAGEAND_URL, headers = HEADER)
+def GetPagesList(url):
+    response = requests.get(url, headers = HEADER)
+    print(response)
     data = response.json()
-    for pageData in data:
-        pageAddress = pageData["link"]
-        # Call function to save the page now that we have our link
-        SavePage(pageAddress)    
+    return data
 
 def SendErrorNotification(e):
     try:
@@ -97,23 +75,26 @@ try:
     # Hopefully after fixing whatever it is went wrong
     if error == "False":
         endpoints = list()
-        endpoints.append(ServiceEndPoint("bada"))
+        print(API_URL)
+        #endpoints.append(ServiceEndPoint(API_URL))
         #endpoints.append(ServiceEndPoint("posts"))
 
         # process each endpoint in our list
-        for service in endpoints:
-            service.count = GetPageCount(service.url)
-            for x in range(1, int(service.count)):
-                ProcessPage(service.url, x)
+        pageData = GetPagesList(API_URL + "?timestamp=" + LASTRUN)
+        print(pageData)
+        for page in pageData:
+            print(page["link"])
+            SavePageToS3(page["link"])
 
         # finally set the LastRun value and save to the config file
         config["LastRun"] = startTime.strftime("%Y-%m-%d %H:%M:%S")
     else:
-        PostToSlack("There was an error scraping beta.phila.gov on the last run. Please clear the error.")
+        print("Error!")
+        #PostToSlack("There was an error scraping beta.phila.gov on the last run. Please clear the error.")
 except BaseException as e:
     error = "True"
-    PostToSlack("Error scraping beta.phila.gov")
+    #PostToSlack("Error scraping beta.phila.gov")
 finally:
     config["Error"] = error
-    with open('config.json', 'w') as outfile:
-        json.dump(config, outfile)
+    #with open('config.json', 'w') as outfile:
+    #    json.dump(config, outfile)
