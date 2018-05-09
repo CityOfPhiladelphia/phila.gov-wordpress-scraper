@@ -30,7 +30,7 @@ def send_error_notification(e):
         msg['Subject'] = subject
         msg['From'] = 'ithelp@phila.gov'
         msg['To'] = 'andrew.kennel@phila.gov'
-        SendEmail(msg)
+        send_email(msg)
     except:
         print("Fail")
 
@@ -44,7 +44,7 @@ def post_to_slack(message):
                               headers={'Content-Type': 'application/json'})
     except Exception as em:
         #Fall-back to sending an email
-        print(SendErrorNotification(em))
+        print(send_error_notification(em))
 
 def send_email(msg):
     try:
