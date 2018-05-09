@@ -39,14 +39,21 @@ def init_logger(logging_config):
 
 def save_page(url, save_s3, s3_client, s3_bucket):
     response = requests.get(url, headers = HEADER)
-    key = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "") + "index.html"
-    body = response.text.replace('beta.phila.gov', NEW_URL)
+    key = SAVE_FOLDER + url.replace("https://beta.phila.gov/", "")
+    if key.endswith('/'):
+        key = key + 'index.html'
+    __types = response.headers['Content-Type'].split(';')
+    __content_type = __types[0]
 
+    if __content_type == 'text/html':
+        body = response.text.replace('beta.phila.gov', NEW_URL)
+    else:
+        body = response.content
+    
     if save_s3:
-        s3_client.put_object(Bucket=s3_bucket,
-                             Key=key,
+        s3_bucket.put_object(Key=key,
                              Body=body,
-                             ContentType='text/html',
+                             ContentType=__content_type,
                              ACL='public-read')
     else:
         path = os.path.join(os.getcwd(), key)
@@ -86,7 +93,7 @@ def post_to_slack(message):
                               headers={'Content-Type': 'application/json'})
     except Exception as em:
         #Fall-back to sending an email
-        print(SendErrorNotification(em))
+        print(send_error_notification(em))
 
 def send_email(msg):
     try:
@@ -104,6 +111,7 @@ def send_email(msg):
 def main(save_s3, s3_bucket, logging_config):
     logger = init_logger(logging_config)
     s3_client = boto3.resource('s3')
+    s3_bucket = s3_client.Bucket('static.merge.phila.gov')
 
     logger.info('Starting scraper')
 
@@ -116,6 +124,11 @@ def main(save_s3, s3_bucket, logging_config):
         if error == False:
             api_query_url = API_URL + "?timestamp=" + LASTRUN
             logger.info('Fetching page list from: {}'.format(api_query_url))
+            static_pages = open('staticfiles.csv','r').read().splitlines()
+            for page in static_pages:
+                logger.info('Saving static file {}'.format(page))
+                save_page(page, save_s3, s3_client, s3_bucket)
+
             page_data = get_pages_list(api_query_url)
             for page in page_data:
                 url = page["link"]
