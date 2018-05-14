@@ -140,16 +140,18 @@ def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
     def worker():
         global THREAD_ERROR
 
-        try:
-            time.sleep(0.1) # Rate limits acquiring creds in so many threads
-            s3_client = boto3.resource('s3')
-        except Exception as e:
-            message = 'Exception creating S3 client in thread'
-            logger.exception(message)
-            error_lock.acquire()
-            THREAD_ERROR = message
-            error_lock.release()
-            raise e
+        s3_client = None
+        if save_s3:
+            try:
+                time.sleep(0.1) # Rate limits acquiring creds in so many threads
+                s3_client = boto3.resource('s3')
+            except Exception as e:
+                message = 'Exception creating S3 client in thread'
+                logger.exception(message)
+                error_lock.acquire()
+                THREAD_ERROR = message
+                error_lock.release()
+                raise e
 
         while THREAD_ERROR is False:
             url = q.get()
