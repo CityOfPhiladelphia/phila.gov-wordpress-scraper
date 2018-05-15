@@ -1,7 +1,5 @@
 {
   "api": "https://beta.phila.gov/wp-json/last-updated/v1/all",
-  "save_folder": "sitefiles/",
-  "new_url": "market.phila.gov",
-  "last_run": "1999-04-19 16:31:52",
-  "error": false
+  "save_folder": "",
+  "new_base_url": "https://market.phila.gov"
 }

@@ -1,7 +1,9 @@
 import os
+import re
 import sys
 import json
 import time
+import hashlib
 import datetime
 import smtplib
 import logging
@@ -13,13 +15,14 @@ from queue import Queue
 
 import requests
 import boto3
+import botocore
 import click
 
 with open('config.json') as file:
     config = json.load(file)
 
 SAVE_FOLDER = config["save_folder"]
-NEW_URL = config["new_url"]
+NEW_BASE_URL = config["new_base_url"]
 API_URL = config["api"]
 
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
@@ -46,7 +49,7 @@ def init_logger(logging_config):
 
 def save_page(logger, url, save_s3, s3_client, s3_bucket):
     logger.info('Scraping: {}'.format(url))
-    response = requests.get(url, headers = HEADER)
+    response = requests.get(url, headers=HEADER)
     key = SAVE_FOLDER + url.replace('https://beta.phila.gov/', '')
     if key.endswith('/'):
         key += 'index.html'
@@ -54,18 +57,38 @@ def save_page(logger, url, save_s3, s3_client, s3_bucket):
     content_type = content_type_list[0]
 
     if content_type == 'text/html':
-        body = response.text.replace('beta.phila.gov', NEW_URL)
+        body = re.sub('(https?://)?beta\.phila\.gov',
+                      NEW_BASE_URL,
+                      response.text).encode('utf-8')
     else:
         body = response.content
 
     if save_s3:
-        ## TODO: calculate md5 of body
-        ## TODO: check s3 head md5
-        s3_client.put_object(Bucket=s3_bucket,
-                             Key=key,
-                             Body=body,
-                             ContentType=content_type,
-                             ACL='public-read')
+        m = hashlib.md5()
+        m.update(body)
+        md5 = m.hexdigest()
+
+        try:
+            response = s3_client.head_object(Bucket=s3_bucket,
+                                             Key=key)
+            s3_md5 = response['ETag'].replace('"', '')
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                s3_md5 = None
+            else:
+                raise
+
+        if s3_md5 is None or md5 != s3_md5:
+            if md5 and s3_md5:
+                logger.info('Page update detected: {}, source: {}, s3: {}'.format(
+                    url,
+                    md5,
+                    s3_md5))
+            s3_client.put_object(Bucket=s3_bucket,
+                                 Key=key,
+                                 Body=body,
+                                 ContentType=content_type,
+                                 ACL='public-read')
     else:
         path = os.path.join(os.getcwd(), key)
         if not os.path.exists(os.path.dirname(path)):
@@ -75,12 +98,7 @@ def save_page(logger, url, save_s3, s3_client, s3_bucket):
                 if exc.errno != errno.EEXIST:
                     raise
 
-        if content_type == 'text/html':
-            write_mode = 'w'
-        else:
-            write_mode = 'wb'
-
-        with open(path, write_mode) as file:
+        with open(path, 'wb') as file:
             file.write(body)
 
 def get_pages_list(url):
@@ -127,7 +145,7 @@ def stop_workers(q, threads):
 @click.option('--save-s3', is_flag=True, default=False, help='Save site to S3 bucket.')
 @click.option('--s3-bucket', default='static.merge.phila.gov', help='When saving to S3, the bucket to use.')
 @click.option('--logging-config', default='logging_config.conf', help='Python logging config file in YAML format.')
-@click.option('--num-worker-threads', type=int, default=8, help='Number of workers.')
+@click.option('--num-worker-threads', type=int, default=12, help='Number of workers.')
 @click.option('--notifications/--no-notifications', is_flag=True, default=False, help='Enable Slack/email error notifications.')
 def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
     logger = init_logger(logging_config)
@@ -144,7 +162,7 @@ def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
         if save_s3:
             try:
                 time.sleep(0.1) # Rate limits acquiring creds in so many threads
-                s3_client = boto3.resource('s3')
+                s3_client = boto3.client('s3')
             except Exception as e:
                 message = 'Exception creating S3 client in thread'
                 logger.exception(message)
@@ -158,7 +176,7 @@ def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
             if url is None:
                 break
             try:
-                save_page(logger, url, save_s3, s3_client, s3_bucket) ## TODO: try/catch
+                save_page(logger, url, save_s3, s3_client, s3_bucket)
             except Exception as e:
                 message = 'Exception scraping: {}'.format(url)
                 logger.exception(message)
