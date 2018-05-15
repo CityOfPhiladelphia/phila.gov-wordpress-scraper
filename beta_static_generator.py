@@ -80,15 +80,24 @@ def save_page(logger, url, save_s3, s3_client, s3_bucket):
 
         if s3_md5 is None or md5 != s3_md5:
             if md5 and s3_md5:
-                logger.info('Page update detected: {}, source: {}, s3: {}'.format(
+                logger.info('Page update: {}, source: {}, s3: {}'.format(
                     url,
                     md5,
                     s3_md5))
+            else:
+                logger.info('New Page: {}, source: {}'.format(
+                    url,
+                    md5))
             s3_client.put_object(Bucket=s3_bucket,
                                  Key=key,
                                  Body=body,
                                  ContentType=content_type,
                                  ACL='public-read')
+        else:
+            logger.info('Page not updated: {}, source: {}, s3: {}'.format(
+                    url,
+                    md5,
+                    s3_md5))
     else:
         path = os.path.join(os.getcwd(), key)
         if not os.path.exists(os.path.dirname(path)):
