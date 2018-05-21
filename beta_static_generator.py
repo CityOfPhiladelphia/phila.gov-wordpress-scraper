@@ -147,7 +147,7 @@ def post_to_slack(message):
     post = {"text": "{0}".format(message)}
  
     try:
-        requests.post('https://hooks.slack.com/services/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',
+        requests.post('https://hooks.slack.com/services/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',
                       json=post)
     except Exception as em:
         #Fall-back to sending an email

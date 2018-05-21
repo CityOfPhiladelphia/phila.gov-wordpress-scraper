@@ -1,5 +1,5 @@
 {
-  "api": "https://beta.phila.gov/wp-json/last-updated/v1/all",
+  "api": "https://admin.phila.website/wp-json/last-updated/v1/all",
   "save_folder": "",
   "new_base_url": "http://beta-scraper-test.s3-website-us-east-1.amazonaws.com",
   "s3_bucket": "beta-scraper-test",
