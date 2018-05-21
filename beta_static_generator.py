@@ -168,13 +168,12 @@ def stop_workers(q, threads):
 
 @click.command()
 @click.option('--save-s3', is_flag=True, default=False, help='Save site to S3 bucket.')
-@click.option('--s3-bucket', default='static.merge.phila.gov', help='When saving to S3, the bucket to use.')
 @click.option('--logging-config', default='logging_config.conf', help='Python logging config file in YAML format.')
 @click.option('--num-worker-threads', type=int, default=12, help='Number of workers.')
 @click.option('--notifications/--no-notifications', is_flag=True, default=False, help='Enable Slack/email error notifications.')
 @click.option('--publish-stats/--no-publish-stats', is_flag=True, default=False, help='Publish stats to Cloudwatch')
 @click.option('--heartbeat/--no-heartbeat', is_flag=True, default=False, help='Cloudwatch hearbeat')
-def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications, heartbeat, publish_stats):
+def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, publish_stats):
     cloudwatch_client = boto3.client('cloudwatch')
 
     logger = init_logger(logging_config)
@@ -190,6 +189,7 @@ def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications, 
 
         session = requests.Session()
         s3_client = None
+        s3_bucket = config.get('s3_bucket')
 
         if save_s3:
             try:
