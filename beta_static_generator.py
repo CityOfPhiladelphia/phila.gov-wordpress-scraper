@@ -28,6 +28,11 @@ API_URL = config["api"]
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
 
 THREAD_ERROR = False
+STATS = {
+    'pages_scraped': 0,
+    'pages_updated': 0,
+    'pages_new': 0
+}
 
 def init_logger(logging_config):
     try:
@@ -47,9 +52,10 @@ def init_logger(logging_config):
 
     return logger
 
-def save_page(logger, url, save_s3, s3_client, s3_bucket):
+def save_page(logger, session, url, save_s3, s3_client, s3_bucket):
     logger.info('Scraping: {}'.format(url))
-    response = requests.get(url, headers=HEADER)
+    response = session.get(url, headers=HEADER)
+
     key = SAVE_FOLDER + url.replace('https://beta.phila.gov/', '')
     if key.endswith('/'):
         key += 'index.html'
@@ -62,6 +68,9 @@ def save_page(logger, url, save_s3, s3_client, s3_bucket):
                       response.text).encode('utf-8')
     else:
         body = response.content
+
+    page_updated = False
+    page_new = False
 
     if save_s3:
         m = hashlib.md5()
@@ -80,11 +89,13 @@ def save_page(logger, url, save_s3, s3_client, s3_bucket):
 
         if s3_md5 is None or md5 != s3_md5:
             if md5 and s3_md5:
+                page_updated = True
                 logger.info('Page update: {}, source: {}, s3: {}'.format(
                     url,
                     md5,
                     s3_md5))
             else:
+                page_new = True
                 logger.info('New Page: {}, source: {}'.format(
                     url,
                     md5))
@@ -99,6 +110,7 @@ def save_page(logger, url, save_s3, s3_client, s3_bucket):
                     md5,
                     s3_md5))
     else:
+        ## TODO: add md5 check?
         path = os.path.join(os.getcwd(), key)
         if not os.path.exists(os.path.dirname(path)):
             try:
@@ -109,6 +121,10 @@ def save_page(logger, url, save_s3, s3_client, s3_bucket):
 
         with open(path, 'wb') as file:
             file.write(body)
+
+        page_new = True
+
+    return page_new, page_updated
 
 def get_pages_list(url):
     response = requests.get(url, headers=HEADER)
@@ -156,18 +172,25 @@ def stop_workers(q, threads):
 @click.option('--logging-config', default='logging_config.conf', help='Python logging config file in YAML format.')
 @click.option('--num-worker-threads', type=int, default=12, help='Number of workers.')
 @click.option('--notifications/--no-notifications', is_flag=True, default=False, help='Enable Slack/email error notifications.')
-def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
+@click.option('--publish-stats/--no-publish-stats', is_flag=True, default=False, help='Publish stats to Cloudwatch')
+@click.option('--heartbeat/--no-heartbeat', is_flag=True, default=False, help='Cloudwatch hearbeat')
+def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications, heartbeat, publish_stats):
+    cloudwatch_client = boto3.client('cloudwatch')
+
     logger = init_logger(logging_config)
 
     logger.info('Starting scraper')
 
     q = Queue()
+    stats_lock = threading.Lock()
     error_lock = threading.Lock()
 
     def worker():
-        global THREAD_ERROR
+        global THREAD_ERROR, STATS
 
+        session = requests.Session()
         s3_client = None
+
         if save_s3:
             try:
                 time.sleep(0.1) # Rate limits acquiring creds in so many threads
@@ -175,9 +198,8 @@ def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
             except Exception as e:
                 message = 'Exception creating S3 client in thread'
                 logger.exception(message)
-                error_lock.acquire()
-                THREAD_ERROR = message
-                error_lock.release()
+                with error_lock:
+                    THREAD_ERROR = message
                 raise e
 
         while THREAD_ERROR is False:
@@ -185,7 +207,13 @@ def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
             if url is None:
                 break
             try:
-                save_page(logger, url, save_s3, s3_client, s3_bucket)
+                page_new, page_updated = save_page(logger, session, url, save_s3, s3_client, s3_bucket)
+                with stats_lock:
+                    STATS['pages_scraped'] += 1
+                    if page_new:
+                        STATS['pages_new'] += 1
+                    if page_updated:
+                        STATS['pages_updated'] += 1
             except Exception as e:
                 message = 'Exception scraping: {}'.format(url)
                 logger.exception(message)
@@ -221,10 +249,58 @@ def main(save_s3, s3_bucket, logging_config, num_worker_threads, notifications):
 
         if THREAD_ERROR is not False:
             raise Exception(THREAD_ERROR)
+
+        logger.info('Stats - Pages Scraped: {}, Pages New: {}, Pages Updated: {}'.format(
+            STATS['pages_scraped'],
+            STATS['pages_new'],
+            STATS['pages_updated']))
+
+        if publish_stats:
+            try:
+                stats_config = config.get('cloudwatch', {}).get('stats')
+                metrics_prefix = stats_config.get('metrics_prefix', '')
+                cloudwatch_client.put_metric_data(
+                    Namespace=stats_config.get('namespace'),
+                    MetricData=[
+                        {
+                            'MetricName': metrics_prefix + 'pages-scraped',
+                            'Value': STATS['pages_scraped'],
+                            'Unit': 'Count'
+                        },
+                        {
+                            'MetricName': metrics_prefix + 'pages-new',
+                            'Value': STATS['pages_new'],
+                            'Unit': 'Count'
+                        },
+                        {
+                            'MetricName': metrics_prefix + 'pages-updated',
+                            'Value': STATS['pages_updated'],
+                            'Unit': 'Count'
+                        }
+                    ])
+            except:
+                logger.exception('Exception publishing stats to Cloudwatch')
+                raise
     except Exception as e:
         logger.exception('Exception occured scraping site')
         if notifications:
             post_to_slack('Exception occured scraping site: ' + str(e))
+
+    if heartbeat:
+        try:
+            heartbeat_config = config.get('cloudwatch', {}).get('heartbeat')
+            cloudwatch_client.put_metric_data(
+                Namespace=heartbeat_config.get('namespace'),
+                MetricData=[
+                    {
+                        'MetricName': heartbeat_config.get('metric'),
+                        'Value': 1,
+                        'Unit': 'Count'
+                    }
+                ])
+        except:
+            logger.exception('Exception sending heartbeat to Cloudwatch')
+            raise
 
 if __name__ == '__main__':
     main()

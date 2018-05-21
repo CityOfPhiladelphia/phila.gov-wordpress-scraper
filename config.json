@@ -1,5 +1,15 @@
 {
   "api": "https://beta.phila.gov/wp-json/last-updated/v1/all",
   "save_folder": "",
-  "new_base_url": "https://market.phila.gov"
+  "new_base_url": "http://beta-scraper-test.s3-website-us-east-1.amazonaws.com",
+  "cloudwatch": {
+    "heartbeat": {
+      "namespace": "test-phila-gov-site-generator",
+      "metric": "heartbeat"
+    },
+    "stats": {
+      "namespace": "test-phila-gov-site-generator",
+      "metrics_prefix": ""
+    }
+  }
 }
