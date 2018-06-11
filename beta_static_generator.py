@@ -4,14 +4,12 @@ import sys
 import json
 import time
 import hashlib
-import datetime
 import smtplib
 import logging
 import threading
 from logging.config import dictConfig
 from email.mime.text import MIMEText
-from datetime import datetime
-from queue import Queue
+from queue import PriorityQueue
 
 import requests
 import boto3
@@ -104,6 +102,7 @@ def save_page(logger, session, url, save_s3, s3_client, s3_bucket):
                                  Body=body,
                                  ContentType=content_type,
                                  ACL='public-read')
+            ## TODO: invalidate CloudFront?
         else:
             logger.info('Page not updated: {}, source: {}, s3: {}'.format(
                     url,
@@ -145,7 +144,7 @@ def send_error_email(orig_error, e):
 
 def post_to_slack(message):
     post = {"text": "{0}".format(message)}
- 
+    
     try:
         requests.post('https://hooks.slack.com/services/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',
                       json=post)
@@ -162,7 +161,7 @@ def send_email(msg):
 
 def stop_workers(q, threads):
     for i in range(len(threads)):
-        q.put(None)
+        q.put((1, None))
     for t in threads:
         t.join()
 
@@ -174,13 +173,15 @@ def stop_workers(q, threads):
 @click.option('--publish-stats/--no-publish-stats', is_flag=True, default=False, help='Publish stats to Cloudwatch')
 @click.option('--heartbeat/--no-heartbeat', is_flag=True, default=False, help='Cloudwatch hearbeat')
 def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, publish_stats):
+    global THREAD_ERROR
+
     cloudwatch_client = boto3.client('cloudwatch')
 
     logger = init_logger(logging_config)
 
     logger.info('Starting scraper')
 
-    q = Queue()
+    q = PriorityQueue()
     stats_lock = threading.Lock()
     error_lock = threading.Lock()
 
@@ -203,7 +204,7 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
                 raise e
 
         while THREAD_ERROR is False:
-            url = q.get()
+            priority, url = q.get()
             if url is None:
                 break
             try:
@@ -217,9 +218,8 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
             except Exception as e:
                 message = 'Exception scraping: {}'.format(url)
                 logger.exception(message)
-                error_lock.acquire()
-                THREAD_ERROR = message
-                error_lock.release()
+                with error_lock:
+                    THREAD_ERROR = message
                 raise e
             q.task_done()
 
@@ -233,16 +233,34 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
         logger.info('Scraping static files')
         static_pages = open('staticfiles.csv','r').read().splitlines()
         for url in static_pages:
-            q.put(url)
+            q.put((3, url))
 
+        max_datetime = '2000-01-01 00:00:00'
+        max_url = None
         logger.info('Fetching page list from: {}'.format(API_URL))
         page_data = get_pages_list(API_URL)
         for page in page_data:
-            q.put(page["link"])
-
+            if page['updated_at'] > max_datetime:
+                max_datetime = page['updated_at']
+                max_url = page["link"]
+            q.put((3, page["link"]))
+        
+        last_url = None
         while True:
             if q.empty() or THREAD_ERROR is not False:
                 break
+
+            logger.info('Fetching pages updated since: %s', max_datetime)
+            page_data = get_pages_list(API_URL + '?timestamp=' + max_datetime)
+            for page in page_data:
+                # Often just the most recent page is returned, we don't want to just keep scraping it
+                if page['updated_at'] == max_datetime and page["link"] == max_url:
+                    continue
+                if page['updated_at'] > max_datetime:
+                    max_datetime = page['updated_at']
+                    max_url = page["link"]
+                q.put((2, page["link"]))
+
             time.sleep(1)
 
         stop_workers(q, threads)
@@ -283,6 +301,9 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
                 raise
     except Exception as e:
         logger.exception('Exception occured scraping site')
+        with error_lock:
+            THREAD_ERROR = 'Exception occured scraping site'
+        stop_workers(q, threads)
         if notifications:
             post_to_slack('Exception occured scraping site: ' + str(e))
 
