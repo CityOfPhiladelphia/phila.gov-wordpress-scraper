@@ -50,18 +50,17 @@ def init_logger(logging_config):
 
     return logger
 
-def save_page(logger, session, url, save_s3, s3_client, s3_bucket):
+def save_page(logger, session, url, host_to_replace, save_s3, s3_client, s3_bucket):
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER)
-
-    key = SAVE_FOLDER + url.replace('https://beta.phila.gov/', '')
+    key = SAVE_FOLDER + url.replace('https://{}/'.format(host_to_replace), '')
     if key.endswith('/'):
         key += 'index.html'
     content_type_list = response.headers['Content-Type'].split(';')
     content_type = content_type_list[0]
 
     if content_type == 'text/html':
-        body = re.sub('(https?://)?beta\.phila\.gov',
+        body = re.sub('(https?://)?{}'.format(host_to_replace),
                       NEW_BASE_URL,
                       response.text).encode('utf-8')
     else:
@@ -71,14 +70,20 @@ def save_page(logger, session, url, save_s3, s3_client, s3_bucket):
     page_new = False
 
     if save_s3:
+        if content_type == 'text/html':
+            md_body = re.sub(r'"nonce":"[a-f0-9]{10}"', '', body.decode('utf-8')).encode('utf-8')
+        else:
+            md_body = body
+
         m = hashlib.md5()
-        m.update(body)
+        m.update(md_body)
         md5 = m.hexdigest()
 
         try:
             response = s3_client.head_object(Bucket=s3_bucket,
                                              Key=key)
-            s3_md5 = response['ETag'].replace('"', '')
+            s3_md5 = response['Metadata'].get('scraper_md5',
+                                              response['ETag'].replace('"', ''))
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
                 s3_md5 = None
@@ -89,23 +94,26 @@ def save_page(logger, session, url, save_s3, s3_client, s3_bucket):
             if md5 and s3_md5:
                 page_updated = True
                 logger.info('Page update: {}, source: {}, s3: {}'.format(
-                    url,
+                    key,
                     md5,
                     s3_md5))
             else:
                 page_new = True
                 logger.info('New Page: {}, source: {}'.format(
-                    url,
+                    key,
                     md5))
             s3_client.put_object(Bucket=s3_bucket,
                                  Key=key,
                                  Body=body,
                                  ContentType=content_type,
-                                 ACL='public-read')
+                                 ACL='public-read',
+                                 Metadata={
+                                    'scraper_md5': md5
+                                })
             ## TODO: invalidate CloudFront?
         else:
             logger.info('Page not updated: {}, source: {}, s3: {}'.format(
-                    url,
+                    key,
                     md5,
                     s3_md5))
     else:
@@ -179,6 +187,8 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
 
     logger = init_logger(logging_config)
 
+    host_to_replace = config.get('host_to_replace')
+
     logger.info('Starting scraper')
 
     q = PriorityQueue()
@@ -208,7 +218,13 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
             if url is None:
                 break
             try:
-                page_new, page_updated = save_page(logger, session, url, save_s3, s3_client, s3_bucket)
+                page_new, page_updated = save_page(logger,
+                                                   session,
+                                                   url,
+                                                   host_to_replace,
+                                                   save_s3,
+                                                   s3_client,
+                                                   s3_bucket)
                 with stats_lock:
                     STATS['pages_scraped'] += 1
                     if page_new:
@@ -233,6 +249,7 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
         logger.info('Scraping static files')
         static_pages = open('staticfiles.csv','r').read().splitlines()
         for url in static_pages:
+            url = 'https://{}{}'.format(host_to_replace, url)
             q.put((3, url))
 
         max_datetime = '2000-01-01 00:00:00'

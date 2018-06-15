@@ -1,8 +1,9 @@
 {
   "api": "https://admin.phila.website/wp-json/last-updated/v1/all",
   "save_folder": "",
-  "new_base_url": "http://beta-scraper-test.s3-website-us-east-1.amazonaws.com",
-  "s3_bucket": "beta-scraper-test",
+  "host_to_replace": "admin.phila.website",
+  "new_base_url": "https://www.phila.website",
+  "s3_bucket": "www.phila.website",
   "cloudwatch": {
     "heartbeat": {
       "namespace": "test-phila-gov-site-generator",
