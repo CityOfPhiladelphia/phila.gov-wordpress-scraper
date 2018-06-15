@@ -54,6 +54,8 @@ def save_page(logger, session, url, host_to_replace, save_s3, s3_client, s3_buck
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER)
     key = SAVE_FOLDER + url.replace('https://{}/'.format(host_to_replace), '')
+    if key == '':
+        key = '/'
     if key.endswith('/'):
         key += 'index.html'
     content_type_list = response.headers['Content-Type'].split(';')
