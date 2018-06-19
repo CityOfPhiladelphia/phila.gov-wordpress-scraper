@@ -133,20 +133,23 @@ def save_page(logger,
                                  })
             if invalidate_cloudfront:
                 if STATS['invalidations'] < max_invalidations:
-                    logger.info('CloudFront Invalidation ({}/{}): {}'.format(
-                        STATS['invalidations'] + 1,
-                        max_invalidations,
-                        key))
-                    cloudfront_client.create_invalidation(
-                        DistributionId=cloudfront_distribution,
-                        InvalidationBatch={
-                            'Paths': {
-                                'Quantity': 1,
-                                'Items': [key]
-                            },
-                            'CallerReference': updated_at or datetime.utcnow().isoformat()
-                        })
-                    invalidation = True
+                    try:
+                        cloudfront_client.create_invalidation(
+                            DistributionId=cloudfront_distribution,
+                            InvalidationBatch={
+                                'Paths': {
+                                    'Quantity': 1,
+                                    'Items': [key]
+                                },
+                                'CallerReference': (updated_at or datetime.utcnow().isoformat()) + key
+                            })
+                        logger.info('CloudFront Invalidation ({}/{}): {}'.format(
+                            STATS['invalidations'] + 1,
+                            max_invalidations,
+                            key))
+                        invalidation = True
+                    except botocore.errorfactory.InvalidArgument as e:
+                        print(e)
         else:
             logger.info('Page not updated: {}, source: {}, s3: {}'.format(
                     key,
