@@ -148,8 +148,8 @@ def save_page(logger,
                             max_invalidations,
                             key))
                         invalidation = True
-                    except botocore.errorfactory.InvalidArgument as e:
-                        print(e)
+                    except:
+                        logger.exception('Exception invalidating: {}'.format(key))
         else:
             logger.info('Page not updated: {}, source: {}, s3: {}'.format(
                     key,
