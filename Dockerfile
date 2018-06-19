@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "./beta_static_generator.py", "--notifications", "--save-s3", "--publish-stats", "--heartbeat"]
+CMD ["python", "./beta_static_generator.py", "--notifications", "--save-s3", "--invalidate-cloudfront", "--publish-stats", "--heartbeat"]

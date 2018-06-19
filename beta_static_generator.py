@@ -3,25 +3,32 @@ import re
 import sys
 import json
 import time
+import uuid
+import signal
 import hashlib
 import smtplib
 import logging
 import threading
+from urllib.parse import urlparse
 from logging.config import dictConfig
 from email.mime.text import MIMEText
 from queue import PriorityQueue
+from datetime import datetime
 
 import requests
 import boto3
 import botocore
 import click
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 with open('config.json') as file:
     config = json.load(file)
 
 SAVE_FOLDER = config["save_folder"]
 NEW_BASE_URL = config["new_base_url"]
-API_URL = config["api"]
+API_URL = config["wordpress_scrape_host"] + '/wp-json/last-updated/v1/all'
 
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
 
@@ -29,16 +36,18 @@ THREAD_ERROR = False
 STATS = {
     'pages_scraped': 0,
     'pages_updated': 0,
-    'pages_new': 0
+    'pages_new': 0,
+    'invalidations': 0,
+    'updated_at_pages': 0
 }
 
-def init_logger(logging_config):
+def init_logger(logging_config, run_id):
     try:
         with open(logging_config) as file:
             config = yaml.load(file)
         dictConfig(config)
     except:
-        FORMAT = '[%(asctime)-15s] %(levelname)s [%(name)s] %(message)s'
+        FORMAT = '[' + run_id + '] [%(asctime)-15s] %(levelname)s [%(name)s] %(message)s'
         logging.basicConfig(format=FORMAT, level=logging.INFO, stream=sys.stderr)
 
     logger = logging.getLogger('beta-static-generator')
@@ -50,19 +59,28 @@ def init_logger(logging_config):
 
     return logger
 
-def save_page(logger, session, url, host_to_replace, save_s3, s3_client, s3_bucket):
+def save_page(logger,
+              session,
+              url,
+              updated_at,
+              wordpress_url_page_host,
+              save_s3,
+              invalidate_cloudfront,
+              s3_client,
+              s3_bucket,
+              cloudfront_client,
+              cloudfront_distribution,
+              max_invalidations):
     logger.info('Scraping: {}'.format(url))
-    response = session.get(url, headers=HEADER)
-    key = SAVE_FOLDER + url.replace('https://{}/'.format(host_to_replace), '')
-    if key == '':
-        key = '/'
-    if key.endswith('/'):
+    response = session.get(url, headers=HEADER, verify=False)
+    key = SAVE_FOLDER + urlparse(url).path
+    if key == '' or key.endswith('/'):
         key += 'index.html'
     content_type_list = response.headers['Content-Type'].split(';')
     content_type = content_type_list[0]
 
     if content_type == 'text/html':
-        body = re.sub('(https?://)?{}'.format(host_to_replace),
+        body = re.sub('(https?://)?{}'.format(wordpress_url_page_host),
                       NEW_BASE_URL,
                       response.text).encode('utf-8')
     else:
@@ -70,11 +88,12 @@ def save_page(logger, session, url, host_to_replace, save_s3, s3_client, s3_buck
 
     page_updated = False
     page_new = False
+    invalidation = False
 
     if save_s3:
         if content_type == 'text/html':
             md_body = re.sub(r'"nonce":"[a-f0-9]{10}"', '', body.decode('utf-8')).encode('utf-8')
-        else:
+        else:   
             md_body = body
 
         m = hashlib.md5()
@@ -111,8 +130,23 @@ def save_page(logger, session, url, host_to_replace, save_s3, s3_client, s3_buck
                                  ACL='public-read',
                                  Metadata={
                                     'scraper_md5': md5
-                                })
-            ## TODO: invalidate CloudFront?
+                                 })
+            if invalidate_cloudfront:
+                if STATS['invalidations'] < max_invalidations:
+                    logger.info('CloudFront Invalidation ({}/{}): {}'.format(
+                        STATS['invalidations'] + 1,
+                        max_invalidations,
+                        key))
+                    cloudfront_client.create_invalidation(
+                        DistributionId=cloudfront_distribution,
+                        InvalidationBatch={
+                            'Paths': {
+                                'Quantity': 1,
+                                'Items': [key]
+                            },
+                            'CallerReference': updated_at or datetime.utcnow().isoformat()
+                        })
+                    invalidation = True
         else:
             logger.info('Page not updated: {}, source: {}, s3: {}'.format(
                     key,
@@ -133,10 +167,10 @@ def save_page(logger, session, url, host_to_replace, save_s3, s3_client, s3_buck
 
         page_new = True
 
-    return page_new, page_updated
+    return page_new, page_updated, invalidation
 
 def get_pages_list(url):
-    response = requests.get(url, headers=HEADER)
+    response = requests.get(url, headers=HEADER, verify=False)
     data = response.json()
     return data
 
@@ -171,25 +205,30 @@ def send_email(msg):
 
 def stop_workers(q, threads):
     for i in range(len(threads)):
-        q.put((1, None))
+        q.put((1, None, None))
     for t in threads:
         t.join()
 
 @click.command()
 @click.option('--save-s3', is_flag=True, default=False, help='Save site to S3 bucket.')
+@click.option('--invalidate-cloudfront', is_flag=True, default=False, help='Invalidates CloudFront paths that are updated.')
 @click.option('--logging-config', default='logging_config.conf', help='Python logging config file in YAML format.')
 @click.option('--num-worker-threads', type=int, default=12, help='Number of workers.')
 @click.option('--notifications/--no-notifications', is_flag=True, default=False, help='Enable Slack/email error notifications.')
 @click.option('--publish-stats/--no-publish-stats', is_flag=True, default=False, help='Publish stats to Cloudwatch')
 @click.option('--heartbeat/--no-heartbeat', is_flag=True, default=False, help='Cloudwatch hearbeat')
-def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, publish_stats):
+def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, notifications, heartbeat, publish_stats):
     global THREAD_ERROR
 
     cloudwatch_client = boto3.client('cloudwatch')
 
-    logger = init_logger(logging_config)
+    run_id = str(uuid.uuid4())
+    logger = init_logger(logging_config, run_id)
 
-    host_to_replace = config.get('host_to_replace')
+    wordpress_url_page_host = config.get('wordpress_url_page_host')
+    wordpress_scrape_host = config.get('wordpress_scrape_host')
+    cloudfront_distribution = config.get('cloudfront_distribution')
+    max_invalidations = config.get('max_invalidations')
 
     logger.info('Starting scraper')
 
@@ -208,6 +247,7 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
             try:
                 time.sleep(0.1) # Rate limits acquiring creds in so many threads
                 s3_client = boto3.client('s3')
+                cloudfront_client = boto3.client('cloudfront')
             except Exception as e:
                 message = 'Exception creating S3 client in thread'
                 logger.exception(message)
@@ -216,23 +256,30 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
                 raise e
 
         while THREAD_ERROR is False:
-            priority, url = q.get()
+            priority, url, updated_at = q.get()
             if url is None:
                 break
             try:
-                page_new, page_updated = save_page(logger,
-                                                   session,
-                                                   url,
-                                                   host_to_replace,
-                                                   save_s3,
-                                                   s3_client,
-                                                   s3_bucket)
+                page_new, page_updated, invalidation = save_page(logger,
+                                                                 session,
+                                                                 url,
+                                                                 updated_at,
+                                                                 wordpress_url_page_host,
+                                                                 save_s3,
+                                                                 invalidate_cloudfront,
+                                                                 s3_client,
+                                                                 s3_bucket,
+                                                                 cloudfront_client,
+                                                                 cloudfront_distribution,
+                                                                 max_invalidations)
                 with stats_lock:
                     STATS['pages_scraped'] += 1
                     if page_new:
                         STATS['pages_new'] += 1
                     if page_updated:
                         STATS['pages_updated'] += 1
+                    if invalidation:
+                        STATS['invalidations'] += 1
             except Exception as e:
                 message = 'Exception scraping: {}'.format(url)
                 logger.exception(message)
@@ -247,12 +294,18 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
         t.start()
         threads.append(t)
 
+    def kill(signum, frame):
+        stop_workers(q, threads)
+        sys.exit(0)
+    signal.signal(signal.SIGINT, kill)
+    signal.signal(signal.SIGTERM, kill)
+
     try:
         logger.info('Scraping static files')
         static_pages = open('staticfiles.csv','r').read().splitlines()
         for url in static_pages:
-            url = 'https://{}{}'.format(host_to_replace, url)
-            q.put((3, url))
+            url = '{}{}'.format(wordpress_scrape_host, url)
+            q.put((3, url, None))
 
         max_datetime = '2000-01-01 00:00:00'
         max_url = None
@@ -262,7 +315,7 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
             if page['updated_at'] > max_datetime:
                 max_datetime = page['updated_at']
                 max_url = page["link"]
-            q.put((3, page["link"]))
+            q.put((3, page["link"], page['updated_at']))
         
         last_url = None
         while True:
@@ -273,12 +326,16 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
             page_data = get_pages_list(API_URL + '?timestamp=' + max_datetime)
             for page in page_data:
                 # Often just the most recent page is returned, we don't want to just keep scraping it
-                if page['updated_at'] == max_datetime and page["link"] == max_url:
+                updated_at = page['updated_at']
+                url = re.sub('https?://' + wordpress_url_page_host, page["link"], wordpress_scrape_host)
+                if updated_at == max_datetime and url == max_url:
                     continue
-                if page['updated_at'] > max_datetime:
-                    max_datetime = page['updated_at']
-                    max_url = page["link"]
-                q.put((2, page["link"]))
+                if updated_at > max_datetime:
+                    max_datetime = updated_at
+                    max_url = url
+                with stats_lock:
+                    STATS['updated_at_pages'] += 1
+                q.put((2, url, updated_at))
 
             time.sleep(1)
 
@@ -312,6 +369,16 @@ def main(save_s3, logging_config, num_worker_threads, notifications, heartbeat, 
                         {
                             'MetricName': metrics_prefix + 'pages-updated',
                             'Value': STATS['pages_updated'],
+                            'Unit': 'Count'
+                        },
+                        {
+                            'MetricName': metrics_prefix + 'invalidations',
+                            'Value': STATS['invalidations'],
+                            'Unit': 'Count'
+                        },
+                        {
+                            'MetricName': metrics_prefix + 'updated-at-pages',
+                            'Value': STATS['updated_at_pages'],
                             'Unit': 'Count'
                         }
                     ])
