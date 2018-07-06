@@ -330,7 +330,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
             for page in page_data:
                 # Often just the most recent page is returned, we don't want to just keep scraping it
                 updated_at = page['updated_at']
-                url = re.sub('https?://' + wordpress_url_page_host, page["link"], wordpress_scrape_host)
+                url = re.sub('https?://' + wordpress_url_page_host, wordpress_scrape_host, page["link"])
                 if updated_at == max_datetime and url == max_url:
                     continue
                 if updated_at > max_datetime:
