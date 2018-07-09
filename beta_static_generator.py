@@ -132,7 +132,8 @@ def save_page(logger,
                                     'scraper_md5': md5
                                  })
             if invalidate_cloudfront:
-                if STATS['invalidations'] < max_invalidations:
+                num_invalidations = STATS['invalidations']
+                if num_invalidations < max_invalidations:
                     try:
                         cloudfront_client.create_invalidation(
                             DistributionId=cloudfront_distribution,
@@ -144,7 +145,7 @@ def save_page(logger,
                                 'CallerReference': (updated_at or datetime.utcnow().isoformat()) + key
                             })
                         logger.info('CloudFront Invalidation ({}/{}): {}'.format(
-                            STATS['invalidations'] + 1,
+                            num_invalidations + 1,
                             max_invalidations,
                             key))
                         invalidation = True
@@ -347,10 +348,13 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
         if THREAD_ERROR is not False:
             raise Exception(THREAD_ERROR)
 
-        logger.info('Stats - Pages Scraped: {}, Pages New: {}, Pages Updated: {}'.format(
-            STATS['pages_scraped'],
-            STATS['pages_new'],
-            STATS['pages_updated']))
+        logger.info('Stats - Pages Scraped: {}, Pages New: {}, Pages Updated: {}, ' +
+                    'Updated At Pages: {}, Invalidations: {}'.format(
+                        STATS['pages_scraped'],
+                        STATS['pages_new'],
+                        STATS['pages_updated'],
+                        STATS['updated_at_pages'],
+                        STATS['invalidations']))
 
         if publish_stats:
             try:
