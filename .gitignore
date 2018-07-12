@@ -94,4 +94,5 @@ envs/
 ._*
 
 # Custom
+env.sh
 sitefiles/

@@ -23,12 +23,14 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-with open('config.json') as file:
-    config = json.load(file)
-
-SAVE_FOLDER = config["save_folder"]
-NEW_BASE_URL = config["new_base_url"]
-API_URL = config["wordpress_scrape_host"] + '/wp-json/last-updated/v1/all'
+SCRAPER_SLACK_URL = os.getenv('SCRAPER_SLACK_URL')
+SCRAPER_HOSTNAMES_TO_FIND = os.getenv('SCRAPER_HOSTNAMES_TO_FIND')
+SCRAPER_HOSTNAME_REPLACE = os.getenv('SCRAPER_HOSTNAME_REPLACE')
+SCRAPER_HOST_FOR_URLS_AND_PAGES = os.getenv('SCRAPER_HOST_FOR_URLS_AND_PAGES')
+SCRAPER_S3_BUCKET = os.getenv('SCRAPER_S3_BUCKET')
+SCRAPER_CLOUDFRONT_DISTRIBUTION = os.getenv('SCRAPER_CLOUDFRONT_DISTRIBUTION')
+SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS = int(os.getenv('SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS', 50))
+SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE = os.getenv('SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE')
 
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
 
@@ -63,25 +65,21 @@ def save_page(logger,
               session,
               url,
               updated_at,
-              wordpress_url_page_host,
               save_s3,
               invalidate_cloudfront,
               s3_client,
-              s3_bucket,
-              cloudfront_client,
-              cloudfront_distribution,
-              max_invalidations):
+              cloudfront_client):
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER, verify=False)
-    key = SAVE_FOLDER + urlparse(url).path
+    key = urlparse(url).path[1:]
     if key == '' or key.endswith('/'):
         key += 'index.html'
     content_type_list = response.headers['Content-Type'].split(';')
     content_type = content_type_list[0]
 
     if content_type == 'text/html':
-        body = re.sub('(https?://)?{}'.format(wordpress_url_page_host),
-                      NEW_BASE_URL,
+        body = re.sub('(https?://)?{}'.format(SCRAPER_HOSTNAMES_TO_FIND),
+                      SCRAPER_HOSTNAME_REPLACE,
                       response.text).encode('utf-8')
     else:
         body = response.content
@@ -101,7 +99,7 @@ def save_page(logger,
         md5 = m.hexdigest()
 
         try:
-            response = s3_client.head_object(Bucket=s3_bucket,
+            response = s3_client.head_object(Bucket=SCRAPER_S3_BUCKET,
                                              Key=key)
             s3_md5 = response['Metadata'].get('scraper_md5',
                                               response['ETag'].replace('"', ''))
@@ -123,7 +121,7 @@ def save_page(logger,
                 logger.info('New Page: {}, source: {}'.format(
                     key,
                     md5))
-            s3_client.put_object(Bucket=s3_bucket,
+            s3_client.put_object(Bucket=SCRAPER_S3_BUCKET,
                                  Key=key,
                                  Body=body,
                                  ContentType=content_type,
@@ -131,26 +129,29 @@ def save_page(logger,
                                  Metadata={
                                     'scraper_md5': md5
                                  })
-            if invalidate_cloudfront:
+            if page_updated and invalidate_cloudfront:
                 num_invalidations = STATS['invalidations']
-                if num_invalidations < max_invalidations:
+                if num_invalidations < SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS:
                     try:
+                        invaldiation_path = key
+                        if key[:1] != '/':
+                            invaldiation_path = '/' + invaldiation_path
                         cloudfront_client.create_invalidation(
-                            DistributionId=cloudfront_distribution,
+                            DistributionId=SCRAPER_CLOUDFRONT_DISTRIBUTION,
                             InvalidationBatch={
                                 'Paths': {
                                     'Quantity': 1,
-                                    'Items': [key]
+                                    'Items': [invaldiation_path]
                                 },
-                                'CallerReference': (updated_at or datetime.utcnow().isoformat()) + key
+                                'CallerReference': (updated_at or datetime.utcnow().isoformat()) + invaldiation_path
                             })
                         logger.info('CloudFront Invalidation ({}/{}): {}'.format(
                             num_invalidations + 1,
-                            max_invalidations,
-                            key))
+                            SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS,
+                            invaldiation_path))
                         invalidation = True
                     except:
-                        logger.exception('Exception invalidating: {}'.format(key))
+                        logger.exception('Exception invalidating: {}'.format(invaldiation_path))
         else:
             logger.info('Page not updated: {}, source: {}, s3: {}'.format(
                     key,
@@ -158,6 +159,7 @@ def save_page(logger,
                     s3_md5))
     else:
         ## TODO: add md5 check?
+        key = 'sitefiles/' + key
         path = os.path.join(os.getcwd(), key)
         if not os.path.exists(os.path.dirname(path)):
             try:
@@ -194,8 +196,7 @@ def post_to_slack(message):
     post = {"text": "{0}".format(message)}
     
     try:
-        requests.post('https://hooks.slack.com/services/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',
-                      json=post)
+        requests.post(SCRAPER_SLACK_URL, json=post)
     except Exception as em:
         #Fall-back to sending an email
         logger.exception('Exception sending error message to Slack')
@@ -229,11 +230,6 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
     run_id = str(uuid.uuid4())
     logger = init_logger(logging_config, run_id)
 
-    wordpress_url_page_host = config.get('wordpress_url_page_host')
-    wordpress_scrape_host = config.get('wordpress_scrape_host')
-    cloudfront_distribution = config.get('cloudfront_distribution')
-    max_invalidations = config.get('max_invalidations')
-
     logger.info('Starting scraper')
 
     q = PriorityQueue()
@@ -245,7 +241,6 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
 
         session = requests.Session()
         s3_client = None
-        s3_bucket = config.get('s3_bucket')
 
         if save_s3:
             try:
@@ -268,14 +263,10 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
                                                                  session,
                                                                  url,
                                                                  updated_at,
-                                                                 wordpress_url_page_host,
                                                                  save_s3,
                                                                  invalidate_cloudfront,
                                                                  s3_client,
-                                                                 s3_bucket,
-                                                                 cloudfront_client,
-                                                                 cloudfront_distribution,
-                                                                 max_invalidations)
+                                                                 cloudfront_client)
                 with stats_lock:
                     STATS['pages_scraped'] += 1
                     if page_new:
@@ -308,13 +299,16 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
         logger.info('Scraping static files')
         static_pages = open('staticfiles.csv','r').read().splitlines()
         for url in static_pages:
-            url = '{}{}'.format(wordpress_scrape_host, url)
+            url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES, url)
             q.put((3, url, None))
+
+        api_url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES,
+                                        '/wp-json/last-updated/v1/all')
 
         max_datetime = '2000-01-01 00:00:00'
         max_url = None
-        logger.info('Fetching page list from: {}'.format(API_URL))
-        page_data = get_pages_list(API_URL)
+        logger.info('Fetching page list from: {}'.format(api_url))
+        page_data = get_pages_list(api_url)
         for page in page_data:
             if page['updated_at'] > max_datetime:
                 max_datetime = page['updated_at']
@@ -327,11 +321,13 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
                 break
 
             logger.info('Fetching pages updated since: %s', max_datetime)
-            page_data = get_pages_list(API_URL + '?timestamp=' + max_datetime)
+            page_data = get_pages_list(api_url + '?timestamp=' + max_datetime)
             for page in page_data:
                 # Often just the most recent page is returned, we don't want to just keep scraping it
                 updated_at = page['updated_at']
-                url = re.sub('https?://' + wordpress_url_page_host, wordpress_scrape_host, page["link"])
+                url = re.sub('https?://' + SCRAPER_HOSTNAMES_TO_FIND,
+                             'https://' + SCRAPER_HOST_FOR_URLS_AND_PAGES,
+                             page["link"])
                 if updated_at == max_datetime and url == max_url:
                     continue
                 if updated_at > max_datetime:
@@ -358,33 +354,31 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
 
         if publish_stats:
             try:
-                stats_config = config.get('cloudwatch', {}).get('stats')
-                metrics_prefix = stats_config.get('metrics_prefix', '')
                 cloudwatch_client.put_metric_data(
-                    Namespace=stats_config.get('namespace'),
+                    Namespace=SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE,
                     MetricData=[
                         {
-                            'MetricName': metrics_prefix + 'pages-scraped',
+                            'MetricName': 'pages-scraped',
                             'Value': STATS['pages_scraped'],
                             'Unit': 'Count'
                         },
                         {
-                            'MetricName': metrics_prefix + 'pages-new',
+                            'MetricName': 'pages-new',
                             'Value': STATS['pages_new'],
                             'Unit': 'Count'
                         },
                         {
-                            'MetricName': metrics_prefix + 'pages-updated',
+                            'MetricName': 'pages-updated',
                             'Value': STATS['pages_updated'],
                             'Unit': 'Count'
                         },
                         {
-                            'MetricName': metrics_prefix + 'invalidations',
+                            'MetricName': 'invalidations',
                             'Value': STATS['invalidations'],
                             'Unit': 'Count'
                         },
                         {
-                            'MetricName': metrics_prefix + 'updated-at-pages',
+                            'MetricName': 'updated-at-pages',
                             'Value': STATS['updated_at_pages'],
                             'Unit': 'Count'
                         }
@@ -402,12 +396,11 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
 
     if heartbeat:
         try:
-            heartbeat_config = config.get('cloudwatch', {}).get('heartbeat')
             cloudwatch_client.put_metric_data(
-                Namespace=heartbeat_config.get('namespace'),
+                Namespace=SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE,
                 MetricData=[
                     {
-                        'MetricName': heartbeat_config.get('metric'),
+                        'MetricName': 'heartbeat',
                         'Value': 1,
                         'Unit': 'Count'
                     }
