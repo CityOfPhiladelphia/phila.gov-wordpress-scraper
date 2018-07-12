@@ -79,7 +79,7 @@ def save_page(logger,
 
     if content_type == 'text/html':
         body = re.sub('(https?://)?{}'.format(SCRAPER_HOSTNAMES_TO_FIND),
-                      SCRAPER_HOSTNAME_REPLACE,
+                      'https://' + SCRAPER_HOSTNAME_REPLACE,
                       response.text).encode('utf-8')
     else:
         body = response.content
