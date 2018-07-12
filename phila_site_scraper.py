@@ -29,7 +29,7 @@ SCRAPER_HOSTNAME_REPLACE = os.getenv('SCRAPER_HOSTNAME_REPLACE')
 SCRAPER_HOST_FOR_URLS_AND_PAGES = os.getenv('SCRAPER_HOST_FOR_URLS_AND_PAGES')
 SCRAPER_S3_BUCKET = os.getenv('SCRAPER_S3_BUCKET')
 SCRAPER_CLOUDFRONT_DISTRIBUTION = os.getenv('SCRAPER_CLOUDFRONT_DISTRIBUTION')
-SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS = int(os.getenv('SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS', 50))
+SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS = int(os.getenv('SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS', 50))
 SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE = os.getenv('SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE')
 
 HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
@@ -131,7 +131,7 @@ def save_page(logger,
                                  })
             if page_updated and invalidate_cloudfront:
                 num_invalidations = STATS['invalidations']
-                if num_invalidations < SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS:
+                if num_invalidations < SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS:
                     try:
                         invaldiation_path = key
                         if key[:1] != '/':
@@ -147,7 +147,7 @@ def save_page(logger,
                             })
                         logger.info('CloudFront Invalidation ({}/{}): {}'.format(
                             num_invalidations + 1,
-                            SCRAPER_CLOUDFRONT_MAX_INVLIDATIONS,
+                            SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS,
                             invaldiation_path))
                         invalidation = True
                     except:
