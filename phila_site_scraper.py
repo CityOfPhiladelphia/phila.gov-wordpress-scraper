@@ -72,14 +72,18 @@ def save_page(logger,
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER, verify=False)
     key = urlparse(url).path[1:]
-    if key == '' or key.endswith('/'):
+    if key == '' or '.' not in key:
+        if not key.endswith('/'):
+            key += '/'
         key += 'index.html'
-    content_type_list = response.headers['Content-Type'].split(';')
+
+    original_content_type = response.headers['Content-Type']
+    content_type_list = original_content_type.split(';')
     content_type = content_type_list[0]
 
     if content_type == 'text/html':
-        body = re.sub('(https?://)?{}'.format(SCRAPER_HOSTNAMES_TO_FIND),
-                      'https://' + SCRAPER_HOSTNAME_REPLACE,
+        body = re.sub(SCRAPER_HOSTNAMES_TO_FIND,
+                      SCRAPER_HOSTNAME_REPLACE,
                       response.text).encode('utf-8')
     else:
         body = response.content
@@ -124,7 +128,7 @@ def save_page(logger,
             s3_client.put_object(Bucket=SCRAPER_S3_BUCKET,
                                  Key=key,
                                  Body=body,
-                                 ContentType=content_type,
+                                 ContentType=original_content_type,
                                  ACL='public-read',
                                  Metadata={
                                     'scraper_md5': md5
