@@ -317,10 +317,11 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
         logger.info('Fetching page list from: {}'.format(api_url))
         page_data = get_pages_list(api_url)
         for page in page_data:
+            url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES, page['link'])
             if page['updated_at'] > max_datetime:
                 max_datetime = page['updated_at']
-                max_url = page["link"]
-            q.put((3, page["link"], page['updated_at']))
+                max_url = url
+            q.put((3, url, page['updated_at']))
         
         last_url = None
         while True:
