@@ -71,8 +71,11 @@ def save_page(logger,
               cloudfront_client):
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER, verify=False)
+
     key = urlparse(url).path[1:]
-    if key == '' or '.' not in key:
+    if key == '':
+        key = 'index.html'
+    elif '.' not in key:
         if not key.endswith('/'):
             key += '/'
         key += 'index.html'
