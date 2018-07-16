@@ -332,9 +332,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
             for page in page_data:
                 # Often just the most recent page is returned, we don't want to just keep scraping it
                 updated_at = page['updated_at']
-                url = re.sub('https?://' + SCRAPER_HOSTNAMES_TO_FIND,
-                             'https://' + SCRAPER_HOST_FOR_URLS_AND_PAGES,
-                             page["link"])
+                url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES, page['link'])
                 if updated_at == max_datetime and url == max_url:
                     continue
                 if updated_at > max_datetime:
