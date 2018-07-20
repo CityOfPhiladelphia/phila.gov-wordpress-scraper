@@ -317,10 +317,11 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
         logger.info('Fetching page list from: {}'.format(api_url))
         page_data = get_pages_list(api_url)
         for page in page_data:
+            url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES, page['link'])
             if page['updated_at'] > max_datetime:
                 max_datetime = page['updated_at']
-                max_url = page["link"]
-            q.put((3, page["link"], page['updated_at']))
+                max_url = url
+            q.put((3, url, page['updated_at']))
         
         last_url = None
         while True:
@@ -332,9 +333,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
             for page in page_data:
                 # Often just the most recent page is returned, we don't want to just keep scraping it
                 updated_at = page['updated_at']
-                url = re.sub('https?://' + SCRAPER_HOSTNAMES_TO_FIND,
-                             'https://' + SCRAPER_HOST_FOR_URLS_AND_PAGES,
-                             page["link"])
+                url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES, page['link'])
                 if updated_at == max_datetime and url == max_url:
                     continue
                 if updated_at > max_datetime:
