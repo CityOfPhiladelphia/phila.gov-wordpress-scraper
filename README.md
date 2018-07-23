@@ -1,6 +1,7 @@
 # phila.gov-wordpress-scraper
 
 Python CLI app that scrapes the phila.gov wordpress site to generate static HTML pages.
+Requires a [WordPress API endpoint](https://github.com/CityOfPhiladelphia/phila.gov/blob/master/wp/wp-content/plugins/phila.gov-customization/public/class-phila-last-updated-controller.php) listing all WordPress-generated pages.
 
 ## Usage
 
