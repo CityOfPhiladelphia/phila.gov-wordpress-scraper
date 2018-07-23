@@ -1,4 +1,4 @@
-# betastaticsitegenerator
+# phila.gov-wordpress-scraper
 
 Python CLI app that scrapes the phila.gov wordpress site to generate static HTML pages.
 
