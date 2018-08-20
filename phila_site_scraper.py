@@ -20,6 +20,7 @@ import boto3
 import botocore
 import click
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from slack_logger import SlackHandler, SlackFormatter, SlackLogFilter
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -53,6 +54,12 @@ def init_logger(logging_config, run_id):
         logging.basicConfig(format=FORMAT, level=logging.INFO, stream=sys.stderr)
 
     logger = logging.getLogger('beta-static-generator')
+
+    slack_handler = SlackHandler(SCRAPER_SLACK_URL)
+    slack_filter = SlackLogFilter()
+    slack_handler.addFilter(slack_filter)
+    slack_handler.setFormatter(SlackFormatter())
+    logger.addHandler(slack_handler)
 
     def exception_handler(type, value, tb):
         logger.exception("Uncaught exception: {}".format(str(value)), exc_info=(type, value, tb))
@@ -187,34 +194,6 @@ def get_pages_list(url):
     data = response.json()
     return data
 
-def send_error_email(orig_error, e):
-    try:
-        subject = "Beta generator encountered an error when building the site"
-        body = 'Original Error: {}\n\nSlack error details: {}'.format(orig_error, str(e))
-        msg = MIMEText(subject + body)
-        msg['Subject'] = subject
-        msg['From'] = 'ithelp@phila.gov'
-        msg['To'] = 'andrew.kennel@phila.gov'
-        send_email(msg)
-    except:
-        logger.exception('Exception sending error email')
-
-def post_to_slack(message):
-    post = {"text": "{0}".format(message)}
-    
-    try:
-        requests.post(SCRAPER_SLACK_URL, json=post)
-    except Exception as em:
-        #Fall-back to sending an email
-        logger.exception('Exception sending error message to Slack')
-        send_error_email(message, em)
-
-def send_email(msg):
-    s = smtplib.SMTP("relay.city.phila.local")
-    s.set_debuglevel(1)
-    s.send_message(msg)
-    s.quit()
-
 def stop_workers(q, threads):
     for i in range(len(threads)):
         q.put((1, None, None))
@@ -248,6 +227,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
 
         session = requests.Session()
         s3_client = None
+        cloudfront_client = None
 
         if save_s3:
             try:
@@ -393,12 +373,10 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
                 logger.exception('Exception publishing stats to Cloudwatch')
                 raise
     except Exception as e:
-        logger.exception('Exception occured scraping site')
+        logger.exception('Exception occured scraping site', extra={'notify_slack': notifications}) # CLI flag
         with error_lock:
             THREAD_ERROR = 'Exception occured scraping site'
         stop_workers(q, threads)
-        if notifications:
-            post_to_slack('Exception occured scraping site: ' + str(e))
 
     if heartbeat:
         try:
