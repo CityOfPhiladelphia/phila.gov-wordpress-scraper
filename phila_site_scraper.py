@@ -78,7 +78,7 @@ def save_page(logger,
               s3_client,
               cloudfront_client):
     logger.info('Scraping: {}'.format(url))
-    response = session.get(url, headers=HEADER, verify=False)
+    response = session.get(url, headers=HEADER, verify=False, allow_redirects=False)
 
     key = urlparse(url).path[1:]
     if key == '':
