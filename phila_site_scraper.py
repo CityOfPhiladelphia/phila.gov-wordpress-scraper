@@ -24,6 +24,7 @@ from slack_logger import SlackHandler, SlackFormatter, SlackLogFilter
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+SCRAPER_WORKER_THREADS = int(os.getenv('SCRAPER_WORKER_THREADS', 12))
 SCRAPER_SLACK_URL = os.getenv('SCRAPER_SLACK_URL')
 SCRAPER_HOSTNAMES_TO_FIND = os.getenv('SCRAPER_HOSTNAMES_TO_FIND')
 SCRAPER_HOSTNAME_REPLACE = os.getenv('SCRAPER_HOSTNAME_REPLACE')
@@ -204,11 +205,10 @@ def stop_workers(q, threads):
 @click.option('--save-s3', is_flag=True, default=False, help='Save site to S3 bucket.')
 @click.option('--invalidate-cloudfront', is_flag=True, default=False, help='Invalidates CloudFront paths that are updated.')
 @click.option('--logging-config', default='logging_config.conf', help='Python logging config file in YAML format.')
-@click.option('--num-worker-threads', type=int, default=12, help='Number of workers.')
 @click.option('--notifications/--no-notifications', is_flag=True, default=False, help='Enable Slack/email error notifications.')
 @click.option('--publish-stats/--no-publish-stats', is_flag=True, default=False, help='Publish stats to Cloudwatch')
 @click.option('--heartbeat/--no-heartbeat', is_flag=True, default=False, help='Cloudwatch hearbeat')
-def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, notifications, heartbeat, publish_stats):
+def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbeat, publish_stats):
     global THREAD_ERROR
 
     cloudwatch_client = boto3.client('cloudwatch')
@@ -271,7 +271,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, num_worker_threads, not
             q.task_done()
 
     threads = []
-    for i in range(num_worker_threads):
+    for i in range(SCRAPER_WORKER_THREADS):
         t = threading.Thread(target=worker)
         t.start()
         threads.append(t)
