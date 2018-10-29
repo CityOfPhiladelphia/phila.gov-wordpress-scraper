@@ -80,7 +80,9 @@ def save_page(logger,
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER, verify=False, allow_redirects=False)
 
-    key = urlparse(url).path[1:]
+    url_path = urlparse(url).path
+    key = url_path[1:]
+
     if key == '':
         key = 'index.html'
     elif '.' not in key:
@@ -148,8 +150,8 @@ def save_page(logger,
                 num_invalidations = STATS['invalidations']
                 if num_invalidations < SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS:
                     try:
-                        invaldiation_path = key
-                        if key[:1] != '/':
+                        invaldiation_path = url_path
+                        if url_path[:1] != '/':
                             invaldiation_path = '/' + invaldiation_path
                         cloudfront_client.create_invalidation(
                             DistributionId=SCRAPER_CLOUDFRONT_DISTRIBUTION,
