@@ -151,7 +151,7 @@ def save_page(logger,
                 if num_invalidations < SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS:
                     try:
                         invaldiation_path = url_path
-                        if key[:1] != '/':
+                        if url_path[:1] != '/':
                             invaldiation_path = '/' + invaldiation_path
                         cloudfront_client.create_invalidation(
                             DistributionId=SCRAPER_CLOUDFRONT_DISTRIBUTION,
