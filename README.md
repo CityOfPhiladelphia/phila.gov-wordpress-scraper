@@ -24,8 +24,8 @@ Requirements:
 1. Find `phila-gov-wordpress-scraper` in AWS ECR Repositories.
 2. Follow the `View Push Commands` instructions through step 2.
 3. Run `docker build .` if you haven't already done so.
-4. `docker build -t 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA .` - Create and tag a local version of the image. Replace :GITCOMMITSHA in the above example with the commit sha of the latest build. This essentally versions the image, instead of replacing the image tagged as :LATEST (as AWS instructs). 
-5. `docker push 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA` - Create the image in the ECR Repository.
+4. `docker build -t 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA .` - Create and tag a local version of the image. Replace `GITCOMMITSHA` in the above example with the commit sha of the latest build. This essentally versions the image, instead of replacing the image tagged as `LATEST` (as AWS instructs). 
+5. `docker push 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA` - Create the image in the ECR Repository. Remember to replace `GITCOMMITSHA` with the SHA in the previous step. 
 6. Login to [Terraform Enterprise](https://app.terraform.io) and update the `wordpress_scraper_image` variable with the new scrapper tag.
 
 ## Usage
