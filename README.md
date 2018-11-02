@@ -3,6 +3,31 @@
 Python CLI app that scrapes the phila.gov wordpress site to generate static HTML pages.
 Requires a [WordPress API endpoint](https://github.com/CityOfPhiladelphia/phila.gov/blob/master/wp/wp-content/plugins/phila.gov-customization/public/class-phila-last-updated-controller.php) listing all WordPress-generated pages.
 
+## Local development
+
+Requirements:
+
+* Python 3
+* Docker
+* A tool to create isolated Python environments like `virtualenv` or `pipenv`. This guide will use `pipenv`.
+
+### Setup
+
+1.  After installing (docker){https://www.docker.com/get-started} on your machine, cd into directory and run `docker build .` to create your the image.
+2. `pipenv shell` to activate the shell.
+3. `pipenv install` to install project dependencies.
+4. `. env.sh` to source your environment variables.
+5. `python phila_site_scraper.py` to run the scraper locally.
+
+## Deploying
+
+1. Find `phila-gov-wordpress-scraper` in AWS ECR Repositories.
+2. Follow the `View Push Commands` instructions through step 2.
+3. Run `docker build .` if you haven't already done so.
+4. `docker build -t 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA .` - to create and tag a local version of the image
+5. `docker push 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA` - Create the image in the ECR Repository.
+6. Login to (Terraform Enterprise)[https://app.terraform.io] and update the `wordpress_scraper_image` variable with the new scrapper tag.
+
 ## Usage
 
 Using local disk
