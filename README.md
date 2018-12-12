@@ -19,7 +19,7 @@ Requirements:
 4. `. env.sh` to source your environment variables.
 5. `python phila_site_scraper.py` to run the scraper locally.
 
-* When updating dependencies, make sure both requirements.txt and Pipfile are updated. The Dockerfile is using requirements.txt but when testing locally the Pipfile is used by pipenv.
+\* When updating dependencies, make sure both requirements.txt and Pipfile are updated. The Dockerfile is using requirements.txt but when testing locally the Pipfile is used by pipenv.
 
 ## Deploying
 
