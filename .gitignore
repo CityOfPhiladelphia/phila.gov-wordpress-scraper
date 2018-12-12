@@ -23,6 +23,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+get-pip.py
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -92,6 +93,7 @@ envs/
 # Mac
 .DS_Store
 ._*
+.vscode
 
 # Custom
 env.sh
