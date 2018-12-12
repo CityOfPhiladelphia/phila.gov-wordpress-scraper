@@ -9,7 +9,7 @@ Requirements:
 
 * Python 3
 * Docker
-* A tool to create isolated Python environments like `virtualenv` or `pipenv`. This guide will use `pipenv`.
+* pipenv
 
 ### Setup
 
