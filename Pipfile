@@ -17,9 +17,10 @@ requests = "==2.20.0"
 "s3transfer" = "==0.1.13"
 six = "==1.11.0"
 slack-logger = "==0.3.1"
-"urllib3" = "==1.22"
+"urllib3" = "==1.23"
 
 [dev-packages]
+pylint = "*"
 
 [requires]
 python_version = "3.7"
