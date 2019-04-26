@@ -299,6 +299,8 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
         max_url = None
         logger.info('Fetching page list from: {}'.format(api_url))
         page_data = get_pages_list(api_url)
+        if not page_data:
+            logger.exception('Unable to get pages list ({})'.format(SCRAPER_HOSTNAME_REPLACE), extra={'notify_slack': notifications})
         for page in page_data:
             url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES, page['link'])
             if page['updated_at'] > max_datetime:
