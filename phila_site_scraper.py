@@ -8,6 +8,7 @@ import signal
 import hashlib
 import smtplib
 import logging
+import errno
 import threading
 from urllib.parse import urlparse
 from logging.config import dictConfig
@@ -298,6 +299,8 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
         max_url = None
         logger.info('Fetching page list from: {}'.format(api_url))
         page_data = get_pages_list(api_url)
+        if not page_data:
+            logger.exception('Unable to get pages list ({})'.format(SCRAPER_HOSTNAME_REPLACE), extra={'notify_slack': notifications})
         for page in page_data:
             url = 'https://{}{}'.format(SCRAPER_HOST_FOR_URLS_AND_PAGES, page['link'])
             if page['updated_at'] > max_datetime:
@@ -375,7 +378,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
                 logger.exception('Exception publishing stats to Cloudwatch')
                 raise
     except Exception as e:
-        logger.exception('Exception occured scraping site', extra={'notify_slack': notifications}) # CLI flag
+        logger.exception('Exception occured scraping site ({})'.format(SCRAPER_HOSTNAME_REPLACE), extra={'notify_slack': notifications}) # CLI flag
         with error_lock:
             THREAD_ERROR = 'Exception occured scraping site'
         stop_workers(q, threads)

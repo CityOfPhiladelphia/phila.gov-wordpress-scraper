@@ -11,20 +11,22 @@ Requirements:
 * Docker
 * pipenv
 
+
 ### Setup
 
-1.  After installing [docker](https://www.docker.com/get-started) on your machine, cd into directory and run `docker build .` to create the image.
-2. `pipenv shell` to activate the shell.
-3. `pipenv install` to install project dependencies.*
-4. `. env.sh` to source your environment variables.
-5. `python phila_site_scraper.py` to run the scraper locally.
+1. Setup your `env.sh`.
+2. After installing [docker](https://www.docker.com/get-started) on your machine, cd into directory and run `docker build .` to create the image.
+3. `pipenv shell` to activate the shell.
+4. `pipenv install` to install project dependencies.*
+5. `. env.sh` to source your environment variables.
+6. `python phila_site_scraper.py` to run the scraper locally.
 
 \* When updating dependencies, make sure both requirements.txt and Pipfile are updated. The Dockerfile is using requirements.txt but when testing locally the Pipfile is used by pipenv.
 
 ## Deploying
 
 1. Find `phila-gov-wordpress-scraper` in AWS ECR Repositories.
-2. Follow the `View Push Commands` instructions through step 3.
+2. Follow the `View Push Commands` instructions through step 2.
 3. `docker tag phila-gov-wordpress-scraper:latest 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA` - Create and tag a local version of the image. Replace `GITCOMMITSHA` in the above example with the commit sha of the latest build. This essentally versions the image, instead of replacing the image tagged as `LATEST` (as AWS instructs). 
 4. `docker push 676612114792.dkr.ecr.us-east-1.amazonaws.com/phila-gov-wordpress-scraper:GITCOMMITSHA` - Create the image in the ECR Repository. Remember to replace `GITCOMMITSHA` with the SHA in the previous step. 
 5. Login to [Terraform Enterprise](https://app.terraform.io) and update the `wordpress_scraper_image` variable with the new scrapper tag.
