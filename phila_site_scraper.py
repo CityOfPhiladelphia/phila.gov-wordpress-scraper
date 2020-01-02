@@ -25,7 +25,7 @@ from slack_logger import SlackHandler, SlackFormatter, SlackLogFilter
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-SCRAPER_WORKER_THREADS = int(os.getenv('SCRAPER_WORKER_THREADS', 12))
+SCRAPER_WORKER_THREADS = int(os.getenv('SCRAPER_WORKER_THREADS', 6))
 SCRAPER_SLACK_URL = os.getenv('SCRAPER_SLACK_URL')
 SCRAPER_HOSTNAMES_TO_FIND = os.getenv('SCRAPER_HOSTNAMES_TO_FIND')
 SCRAPER_HOSTNAME_REPLACE = os.getenv('SCRAPER_HOSTNAME_REPLACE')
