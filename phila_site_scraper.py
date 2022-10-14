@@ -16,12 +16,14 @@ from email.mime.text import MIMEText
 from queue import PriorityQueue
 from datetime import datetime
 
+import logging
+from teams_logger import TeamsHandler
+
 import requests
 import boto3
 import botocore
 import click
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from slack_logger import SlackHandler, SlackFormatter, SlackLogFilter
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -45,30 +47,6 @@ STATS = {
     'invalidations': 0,
     'updated_at_pages': 0
 }
-
-def init_logger(logging_config, run_id):
-    try:
-        with open(logging_config) as file:
-            config = yaml.load(file)
-        dictConfig(config)
-    except:
-        FORMAT = '[' + run_id + '] [%(asctime)-15s] %(levelname)s [%(name)s] %(message)s'
-        logging.basicConfig(format=FORMAT, level=logging.INFO, stream=sys.stderr)
-
-    logger = logging.getLogger('beta-static-generator')
-
-    slack_handler = SlackHandler(SCRAPER_SLACK_URL)
-    slack_filter = SlackLogFilter()
-    slack_handler.addFilter(slack_filter)
-    slack_handler.setFormatter(SlackFormatter())
-    logger.addHandler(slack_handler)
-
-    def exception_handler(type, value, tb):
-        logger.exception("Uncaught exception: {}".format(str(value)), exc_info=(type, value, tb))
-
-    sys.excepthook = exception_handler
-
-    return logger
 
 def save_page(logger,
               session,
@@ -217,7 +195,10 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
     cloudwatch_client = boto3.client('cloudwatch')
 
     run_id = str(uuid.uuid4())
-    logger = init_logger(logging_config, run_id)
+    logger = logging.getLogger(__name__)
+    th = TeamsHandler(url=SCRAPER_SLACK_URL, level=logging.INFO)
+    logging.basicConfig(handlers=[th])
+    logging.warning('warn message')
 
     logger.info('Starting scraper')
 
