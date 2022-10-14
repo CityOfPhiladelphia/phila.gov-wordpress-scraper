@@ -7,7 +7,7 @@ docutils==0.14
 idna==2.6
 jmespath==0.9.3
 python-dateutil==2.7.2
-requests==2.20.0
+requests==2.24.0
 s3transfer==0.1.13
 six==1.11.0
 teams-logger==0.4.1
