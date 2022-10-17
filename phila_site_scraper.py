@@ -21,7 +21,7 @@ import boto3
 import botocore
 import click
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from slack_logger import SlackHandler, SlackFormatter, SlackLogFilter
+from teams_logger import TeamsHandler
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -217,7 +217,10 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
     cloudwatch_client = boto3.client('cloudwatch')
 
     run_id = str(uuid.uuid4())
-    logger = init_logger(logging_config, run_id)
+    logger = logging.getLogger(__name__)
+    th = TeamsHandler(url=SCRAPER_SLACK_URL, level=logging.INFO)
+    logging.basicConfig(handlers=[th])
+    logging.warning('warn message')
 
     logger.info('Starting scraper')
 
