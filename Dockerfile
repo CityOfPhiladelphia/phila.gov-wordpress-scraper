@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "./phila_site_scraper.py", "--notifications", "--save-s3", "--invalidate-cloudfront", "--publish-stats", "--heartbeat"]
+CMD ["python3", "./phila_site_scraper.py", "--notifications", "--save-s3", "--invalidate-cloudfront", "--publish-stats", "--heartbeat"]
