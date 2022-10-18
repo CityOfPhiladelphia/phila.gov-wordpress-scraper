@@ -161,7 +161,7 @@ def save_page(logger,
                                     'Quantity': 1,
                                     'Items': [invaldiation_path]
                                 },
-                                'CallerReference': (updated_at or datetime.utcnow().isoformat()) + invaldiation_path
+                                'CallerReference': (updated_at or datetime.utcnow().isoformat())
                             })
                         logger.info('CloudFront Invalidation ({}/{}): {}'.format(
                             num_invalidations + 1,
@@ -220,7 +220,6 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
     logger = logging.getLogger(__name__)
     th = TeamsHandler(url=SCRAPER_SLACK_URL, level=logging.INFO)
     logging.basicConfig(handlers=[th])
-    logging.warning('warn message')
 
     logger.info('Starting scraper')
 
