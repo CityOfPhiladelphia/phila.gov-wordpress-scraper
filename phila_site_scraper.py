@@ -57,11 +57,8 @@ def init_logger(logging_config, run_id):
 
     logger = logging.getLogger('beta-static-generator')
 
-    slack_handler = SlackHandler(SCRAPER_SLACK_URL)
-    slack_filter = SlackLogFilter()
-    slack_handler.addFilter(slack_filter)
-    slack_handler.setFormatter(SlackFormatter())
-    logger.addHandler(slack_handler)
+    th = TeamsHandler(url=SCRAPER_SLACK_URL, level=logging.INFO)
+    logger.addHandler(th)
 
     def exception_handler(type, value, tb):
         logger.exception("Uncaught exception: {}".format(str(value)), exc_info=(type, value, tb))
@@ -217,9 +214,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
     cloudwatch_client = boto3.client('cloudwatch')
 
     run_id = str(uuid.uuid4())
-    logger = logging.getLogger(__name__)
-    th = TeamsHandler(url=SCRAPER_SLACK_URL, level=logging.INFO)
-    logging.basicConfig(handlers=[th])
+    logger = init_logger(logging_config, run_id)
 
     logger.info('Starting scraper')
 
