@@ -21,7 +21,6 @@ import boto3
 import botocore
 import click
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from teams_logger import TeamsHandler
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 

@@ -98,3 +98,6 @@ envs/
 # Custom
 env.sh
 sitefiles/
+
+
+node_modules/*

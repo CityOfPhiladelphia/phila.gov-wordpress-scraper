@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "aws-sdk": "^2.1448.0",
+    "axios": "^1.5.0",
+    "click": "^0.1.0",
+    "datetime": "^0.0.3",
+    "fs": "^0.0.1-security",
+    "https": "^1.0.0",
+    "js-yaml": "^4.1.0",
+    "logging": "^3.3.0",
+    "moment": "^2.29.4",
+    "priorityqueuejs": "^2.0.0",
+    "queue": "^7.0.0",
+    "re": "^0.1.4",
+    "requests": "^0.3.0",
+    "threading": "^0.0.2",
+    "urllib3": "^0.0.1",
+    "uuid": "^9.0.0",
+    "yaml": "^2.3.2"
+  }
+}
