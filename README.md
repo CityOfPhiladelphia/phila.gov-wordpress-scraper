@@ -12,14 +12,14 @@ Requirements:
 * pipenv
 
 
-### Setup
+### Setup2
 
 1. Setup your `env.sh`.
-2. After installing [docker](https://www.docker.com/get-started) on your machine, cd into directory and run `docker build .` to create the image.
-3. `pipenv shell` to activate the shell.
-4. `pipenv install` to install project dependencies.*
-5. `. env.sh` to source your environment variables.
-6. `python phila_site_scraper.py` to run the scraper locally.
+2. Create a python3 environement `python3 -m venv scraper`.
+3. `source scraper/bin/activate` to activate the shell.
+4. `pip install -r requirements.txt` to install project dependencies.*
+5. `source env.sh` to source your environment variables.
+6. `python3 phila_site_scraper.py` to run the scraper locally.
 
 \* When updating dependencies, make sure both requirements.txt and Pipfile are updated. The Dockerfile is using requirements.txt but when testing locally the Pipfile is used by pipenv.
 
