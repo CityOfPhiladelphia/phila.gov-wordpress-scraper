@@ -28,8 +28,9 @@ These instructions will get you a copy of the project up and running on your loc
 3. `pipenv shell` to activate the shell.
 4. `pipenv install` to install project dependencies.*
 5. `source env` to source your environment variables.
-6. `aws confiure sso` inside the shell to connect to AWS. 
-6. `python phila_site_scraper.py` to run the scraper locally. Note: running the scraper against production will pull down production resources. 
+6. `aws confiure sso` inside the shell to connect to AWS.
+7. Configure the default region `export AWS_DEFAULT_REGION=us-east-1`
+8. `python phila_site_scraper.py` to run the scraper locally. Note: running the scraper against production will pull down production resources. 
 
 \* When updating dependencies, make sure both requirements.txt and Pipfile are updated. The Dockerfile is using requirements.txt but when testing locally the Pipfile is used by pipenv.
 
