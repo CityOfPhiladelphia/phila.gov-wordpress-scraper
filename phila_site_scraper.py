@@ -109,7 +109,7 @@ def save_page(logger,
     if save_s3:
         if content_type == 'text/html':
             md_body = re.sub(r'"nonce":"[a-f0-9]{10}"', '', body.decode('utf-8')).encode('utf-8')
-        else:   
+        else:
             md_body = body
 
         m = hashlib.md5()
@@ -307,7 +307,7 @@ def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbea
                 max_datetime = page['updated_at']
                 max_url = url
             q.put((3, url, page['updated_at']))
-        
+
         last_url = None
         while True:
             if q.empty() or THREAD_ERROR is not False:

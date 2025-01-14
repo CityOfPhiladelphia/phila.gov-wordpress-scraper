@@ -1,0 +1,20 @@
+org: karissademi
+app: wordpress-scraper-lamba-task
+service: wordpress-scraper-lambda-task
+
+frameworkVersion: '2 || 3'
+
+
+provider:
+  name: aws
+  runtime: python3.9
+  lambdaHashingVersion: 20201221
+
+functions:
+  cronHandler:
+    handler: phila_site_scraper.main
+    # events:
+      # Invoke Lambda function every 2nd minute from Mon-Fri
+      #- schedule: cron(0/2 * ? * MON-FRI *)
+plugins:
+  - serverless-python-requirements
