@@ -81,6 +81,11 @@ def save_page(logger,
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER, verify=False, allow_redirects=False)
 
+    # check for 4XX and 5XX errors
+    if response.status_code >= 400:
+        logger.warning(f"Skipping {url} due to HTTP {response.status_code}")
+        return False, False, False  
+
     url_path = urlparse(url).path
     key = url_path[1:]
 
