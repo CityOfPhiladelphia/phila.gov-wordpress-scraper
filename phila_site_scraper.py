@@ -219,7 +219,7 @@ def stop_workers(q, threads):
 def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbeat, publish_stats):
     global THREAD_ERROR
 
-    cloudwatch_client = boto3.client('cloudwatch')
+    cloudwatch_client = boto3.client('cloudwatch', region_name='us-east-1')
 
     run_id = str(uuid.uuid4())
     logger = init_logger(logging_config, run_id)
