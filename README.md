@@ -13,6 +13,16 @@ These instructions will get you a copy of the project up and running on your loc
 * <a href="https://www.docker.com/products/docker-desktop">Docker</a>
 * <a href="https://github.com/pypa/pipenv">pipenv</a>
 
+### Setup2
+
+1. Setup your `env.sh`.
+2. Create a python3 environement `python3 -m venv scraper`.
+3. `source scraper/bin/activate` to activate the shell.
+4. `pip install -r requirements.txt` to install project dependencies.*
+5. `source env.sh` to source your environment variables.
+6. `python3 phila_site_scraper.py` to run the scraper locally.
+
+
 ### Installing
 
 1. Setup your `env.sh`.
