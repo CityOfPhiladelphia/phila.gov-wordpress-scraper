@@ -21,7 +21,7 @@ import boto3
 import botocore
 import click
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from slack_logger import SlackHandler, SlackFormatter, SlackLogFilter
+from teams_logger import TeamsHandler
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -35,7 +35,7 @@ SCRAPER_CLOUDFRONT_DISTRIBUTION = os.getenv('SCRAPER_CLOUDFRONT_DISTRIBUTION')
 SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS = int(os.getenv('SCRAPER_CLOUDFRONT_MAX_INVALIDATIONS', 50))
 SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE = os.getenv('SCRAPER_CLOUDFRONT_CLOUDWATCH_NAMESPACE')
 
-HEADER = {'user-agent': 'beta-static-generator/0.0.1'}
+HEADER = {'user-agent': 'beta-static-generator/0.0.1', 'phl-scr': 'beta-static-generator/0.0.1'}
 
 THREAD_ERROR = False
 STATS = {
@@ -57,11 +57,8 @@ def init_logger(logging_config, run_id):
 
     logger = logging.getLogger('beta-static-generator')
 
-    slack_handler = SlackHandler(SCRAPER_SLACK_URL)
-    slack_filter = SlackLogFilter()
-    slack_handler.addFilter(slack_filter)
-    slack_handler.setFormatter(SlackFormatter())
-    logger.addHandler(slack_handler)
+    th = TeamsHandler(url=SCRAPER_SLACK_URL, level=logging.INFO)
+    logger.addHandler(th)
 
     def exception_handler(type, value, tb):
         logger.exception("Uncaught exception: {}".format(str(value)), exc_info=(type, value, tb))
@@ -80,6 +77,11 @@ def save_page(logger,
               cloudfront_client):
     logger.info('Scraping: {}'.format(url))
     response = session.get(url, headers=HEADER, verify=False, allow_redirects=False)
+
+    # check for 4XX and 5XX errors
+    if response.status_code >= 400:
+        logger.warning(f"Skipping {url} due to HTTP {response.status_code}")
+        return False, False, False  
 
     url_path = urlparse(url).path
     key = url_path[1:]
@@ -161,7 +163,7 @@ def save_page(logger,
                                     'Quantity': 1,
                                     'Items': [invaldiation_path]
                                 },
-                                'CallerReference': (updated_at or datetime.utcnow().isoformat()) + invaldiation_path
+                                'CallerReference': (updated_at or datetime.utcnow().isoformat())
                             })
                         logger.info('CloudFront Invalidation ({}/{}): {}'.format(
                             num_invalidations + 1,
@@ -214,7 +216,7 @@ def stop_workers(q, threads):
 def main(save_s3, invalidate_cloudfront, logging_config, notifications, heartbeat, publish_stats):
     global THREAD_ERROR
 
-    cloudwatch_client = boto3.client('cloudwatch')
+    cloudwatch_client = boto3.client('cloudwatch', region_name='us-east-1')
 
     run_id = str(uuid.uuid4())
     logger = init_logger(logging_config, run_id)
